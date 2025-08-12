@@ -1,0 +1,379 @@
+# ============================================================================
+# CLOUD RUN SERVICE CONFIGURATION
+# Configuración declarativa para deployment en Google Cloud Run
+# Soporte para múltiples ambientes con parámetros
+# ============================================================================
+
+apiVersion: serving.knative.dev/v1
+kind: Service
+metadata:
+  name: phishing-detector-${ENVIRONMENT}
+  namespace: default
+  labels:
+    app: phishing-detector
+    environment: ${ENVIRONMENT}
+    version: ${VERSION}
+    team: security
+    cost-center: security-automation
+  annotations:
+    # Cloud Run specific annotations
+    run.googleapis.com/ingress: ${INGRESS_TYPE}
+    run.googleapis.com/execution-environment: gen2
+    run.googleapis.com/cpu-throttling: "false"
+    
+    # Observabilidad
+    run.googleapis.com/vpc-access-connector: ${VPC_CONNECTOR_NAME}
+    run.googleapis.com/vpc-access-egress: private-ranges-only
+    
+    # Custom annotations
+    deployment.timestamp: ${DEPLOYMENT_TIMESTAMP}
+    git.commit: ${GIT_COMMIT}
+    git.branch: ${GIT_BRANCH}
+    
+spec:
+  template:
+    metadata:
+      labels:
+        app: phishing-detector
+        environment: ${ENVIRONMENT}
+        version: ${VERSION}
+      annotations:
+        # Scaling configuration
+        autoscaling.knative.dev/minScale: "${MIN_INSTANCES}"
+        autoscaling.knative.dev/maxScale: "${MAX_INSTANCES}"
+        
+        # Performance optimizations
+        run.googleapis.com/cpu-throttling: "false"
+        run.googleapis.com/execution-environment: gen2
+        run.googleapis.com/sandbox: gvisor
+        
+        # Networking
+        run.googleapis.com/network-interfaces: >
+          [{
+            "network": "${NETWORK}",
+            "subnetwork": "${SUBNETWORK}", 
+            "tags": ["phishing-detector", "${ENVIRONMENT}"]
+          }]
+        
+    spec:
+      # Service Account
+      serviceAccountName: ${SERVICE_ACCOUNT_EMAIL}
+      
+      # Timeout configuration
+      timeoutSeconds: ${TIMEOUT_SECONDS}
+      
+      # Container specification
+      containers:
+      - name: phishing-detector
+        image: ${CONTAINER_IMAGE}
+        
+        # Resource limits
+        resources:
+          requests:
+            memory: ${MEMORY_REQUEST}
+            cpu: ${CPU_REQUEST}
+          limits:
+            memory: ${MEMORY_LIMIT}
+            cpu: ${CPU_LIMIT}
+        
+        # Port configuration
+        ports:
+        - name: http1
+          containerPort: 8000
+          protocol: TCP
+        
+        # Environment variables
+        env:
+        # Application configuration
+        - name: ENVIRONMENT
+          value: ${ENVIRONMENT}
+        - name: LOG_LEVEL
+          value: ${LOG_LEVEL}
+        - name: PORT
+          value: "8000"
+        - name: HOST
+          value: "0.0.0.0"
+        - name: WORKERS
+          value: "${WORKERS}"
+        
+        # Python configuration
+        - name: PYTHONUNBUFFERED
+          value: "1"
+        - name: PYTHONDONTWRITEBYTECODE
+          value: "1"
+        - name: PYTHONPATH
+          value: "/app"
+        
+        # Security configuration
+        - name: ALLOWED_ORIGINS
+          value: "${ALLOWED_ORIGINS}"
+        - name: ALLOWED_HOSTS
+          value: "${ALLOWED_HOSTS}"
+        
+        # Performance configuration
+        - name: MAX_REQUESTS_PER_CHILD
+          value: "${MAX_REQUESTS_PER_CHILD}"
+        - name: REQUEST_TIMEOUT
+          value: "${REQUEST_TIMEOUT}"
+        
+        # Observability
+        - name: ENABLE_METRICS
+          value: "true"
+        - name: ENABLE_TRACING
+          value: "${ENABLE_TRACING}"
+        - name: TRACE_SAMPLE_RATE
+          value: "${TRACE_SAMPLE_RATE}"
+        
+        # Feature flags
+        - name: ENABLE_GEMINI
+          value: "${ENABLE_GEMINI}"
+        - name: ENABLE_RATE_LIMITING
+          value: "${ENABLE_RATE_LIMITING}"
+        - name: ENABLE_CACHE
+          value: "${ENABLE_CACHE}"
+        
+        # Secrets from Secret Manager
+        - name: GEMINI_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: gemini-api-key
+              key: latest
+        - name: API_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: api-token-${ENVIRONMENT}
+              key: latest
+              
+        # Optional secrets (for enhanced features)
+        - name: REDIS_URL
+          valueFrom:
+            secretKeyRef:
+              name: redis-url-${ENVIRONMENT}
+              key: latest
+              optional: true
+        
+        # Health check configuration
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+            scheme: HTTP
+          initialDelaySeconds: 30
+          periodSeconds: 30
+          timeoutSeconds: 10
+          failureThreshold: 3
+          successThreshold: 1
+        
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: 8000
+            scheme: HTTP
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+          successThreshold: 1
+        
+        startupProbe:
+          httpGet:
+            path: /health
+            port: 8000
+            scheme: HTTP
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          timeoutSeconds: 10
+          failureThreshold: 10
+          successThreshold: 1
+        
+        # Security context
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 65534  # nobody user
+          readOnlyRootFilesystem: true
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+        
+        # Volume mounts for temporary files
+        volumeMounts:
+        - name: tmp
+          mountPath: /tmp
+        - name: app-cache
+          mountPath: /app/.cache
+      
+      # Volumes
+      volumes:
+      - name: tmp
+        emptyDir:
+          sizeLimit: 1Gi
+      - name: app-cache
+        emptyDir:
+          sizeLimit: 512Mi
+      
+      # Concurrency and scaling
+      containerConcurrency: ${CONCURRENCY}
+      
+      # Additional container configurations
+      enableServiceLinks: false
+
+  # Traffic configuration
+  traffic:
+  - percent: 100
+    latestRevision: true
+    
+---
+# ============================================================================
+# PARAMETERS FOR DIFFERENT ENVIRONMENTS
+# ============================================================================
+
+# DEVELOPMENT ENVIRONMENT
+# Usar con: envsubst < cloud-run.yaml | kubectl apply -f -
+# Variables de entorno requeridas:
+#
+# export ENVIRONMENT=dev
+# export VERSION=latest
+# export CONTAINER_IMAGE=gcr.io/PROJECT_ID/phishing-detector:latest
+# export SERVICE_ACCOUNT_EMAIL=phishing-detector-run-sa@PROJECT_ID.iam.gserviceaccount.com
+# export MIN_INSTANCES=0
+# export MAX_INSTANCES=10
+# export MEMORY_REQUEST=1Gi
+# export MEMORY_LIMIT=2Gi
+# export CPU_REQUEST=1
+# export CPU_LIMIT=2
+# export CONCURRENCY=100
+# export TIMEOUT_SECONDS=300
+# export LOG_LEVEL=debug
+# export WORKERS=1
+# export INGRESS_TYPE=INGRESS_TRAFFIC_ALL
+# export ALLOWED_ORIGINS="https://*.googleapis.com,https://*.google.com"
+# export ALLOWED_HOSTS="*"
+# export ENABLE_TRACING=false
+# export TRACE_SAMPLE_RATE=0.1
+# export ENABLE_GEMINI=true
+# export ENABLE_RATE_LIMITING=true
+# export ENABLE_CACHE=false
+# export MAX_REQUESTS_PER_CHILD=1000
+# export REQUEST_TIMEOUT=300
+# export DEPLOYMENT_TIMESTAMP=$(date -u +%Y%m%d%H%M%S)
+# export GIT_COMMIT=$GITHUB_SHA
+# export GIT_BRANCH=$GITHUB_REF_NAME
+# export NETWORK=default
+# export SUBNETWORK=default
+# export VPC_CONNECTOR_NAME=""
+
+---
+# ============================================================================
+# IAM POLICY FOR SERVICE ACCOUNT
+# ============================================================================
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: service-account-policy-${ENVIRONMENT}
+  labels:
+    app: phishing-detector
+    environment: ${ENVIRONMENT}
+data:
+  policy.yaml: |
+    # Políticas IAM requeridas para el Service Account
+    roles:
+      - roles/secretmanager.secretAccessor
+      - roles/monitoring.metricWriter
+      - roles/logging.logWriter
+      - roles/cloudtrace.agent
+      - roles/cloudprofiler.agent
+      - roles/errorreporting.writer
+    
+    # Condiciones específicas
+    conditions:
+      - title: "Environment access"
+        description: "Access only from specific environment"
+        expression: >
+          request.auth.claims.environment == "${ENVIRONMENT}"
+
+---
+# ============================================================================
+# NETWORK POLICY (Si se usa VPC nativo)
+# ============================================================================
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: phishing-detector-${ENVIRONMENT}
+  labels:
+    app: phishing-detector
+    environment: ${ENVIRONMENT}
+spec:
+  podSelector:
+    matchLabels:
+      app: phishing-detector
+      environment: ${ENVIRONMENT}
+  
+  policyTypes:
+  - Ingress
+  - Egress
+  
+  # Ingress rules
+  ingress:
+  - from:
+    # Allow from Load Balancer
+    - namespaceSelector:
+        matchLabels:
+          name: gke-system
+    # Allow from monitoring
+    - namespaceSelector:
+        matchLabels:
+          name: monitoring
+    ports:
+    - protocol: TCP
+      port: 8000
+  
+  # Egress rules
+  egress:
+  # Allow DNS resolution
+  - to: []
+    ports:
+    - protocol: UDP
+      port: 53
+    - protocol: TCP
+      port: 53
+  
+  # Allow HTTPS outbound (for Gemini API)
+  - to: []
+    ports:
+    - protocol: TCP
+      port: 443
+  
+  # Allow Google APIs
+  - to:
+    - namespaceSelector: {}
+      podSelector:
+        matchLabels:
+          app: googleapis
+    ports:
+    - protocol: TCP
+      port: 443
+
+---
+# ============================================================================
+# SERVICE MONITOR (Para Prometheus)
+# ============================================================================
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: phishing-detector-${ENVIRONMENT}
+  labels:
+    app: phishing-detector
+    environment: ${ENVIRONMENT}
+    prometheus: kube-prometheus
+spec:
+  selector:
+    matchLabels:
+      app: phishing-detector
+      environment: ${ENVIRONMENT}
+  endpoints:
+  - port: http
+    path: /metrics
+    interval: 30s
+    scrapeTimeout: 10s
+    honorLabels: true

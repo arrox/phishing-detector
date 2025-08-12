@@ -1,0 +1,210 @@
+# ============================================================================
+# BANDIT CONFIGURATION
+# Configuración para análisis de seguridad SAST en código Python
+# Detecta vulnerabilidades comunes y malas prácticas de seguridad
+# ============================================================================
+
+# ============================================================================
+# CONFIGURACIÓN GENERAL
+# ============================================================================
+
+# Archivos y directorios a incluir en el análisis
+include:
+  - "src/"
+
+# Archivos y directorios a excluir
+exclude_dirs:
+  - "tests/"
+  - "test/"
+  - "__pycache__/"
+  - ".git/"
+  - ".venv/"
+  - "venv/"
+  - "node_modules/"
+  - ".terraform/"
+  - "build/"
+  - "dist/"
+
+# ============================================================================
+# TESTS A EJECUTAR
+# ============================================================================
+
+# Lista de tests de seguridad habilitados
+tests:
+  # Injection vulnerabilities
+  - B101  # assert_used
+  - B102  # exec_used
+  - B103  # set_bad_file_permissions
+  - B104  # hardcoded_bind_all_interfaces
+  - B105  # hardcoded_password_string
+  - B106  # hardcoded_password_funcarg
+  - B107  # hardcoded_password_default
+  - B108  # hardcoded_tmp_directory
+  - B110  # try_except_pass
+  - B112  # try_except_continue
+
+  # Crypto vulnerabilities
+  - B301  # pickle
+  - B302  # marshal
+  - B303  # md5
+  - B304  # des
+  - B305  # cipher
+  - B306  # mktemp_q
+  - B307  # eval
+  - B308  # mark_safe
+  - B309  # httpsconnection
+  - B310  # urllib_urlopen
+  - B311  # random
+  - B312  # telnetlib
+  - B313  # xml_bad_cElementTree
+  - B314  # xml_bad_ElementTree
+  - B315  # xml_bad_expatreader
+  - B316  # xml_bad_expatbuilder
+  - B317  # xml_bad_sax
+  - B318  # xml_bad_minidom
+  - B319  # xml_bad_pulldom
+  - B320  # xml_bad_xmlparser
+  - B321  # ftplib
+  - B322  # input
+  - B323  # unverified_context
+  - B324  # hashlib_new_insecure_functions
+  - B325  # tempnam
+
+  # SQL Injection
+  - B608  # hardcoded_sql_expressions
+  - B609  # linux_commands_wildcard_injection
+
+  # Shell injection
+  - B602  # subprocess_popen_with_shell_equals_true
+  - B603  # subprocess_without_shell_equals_true
+  - B604  # any_other_function_with_shell_equals_true
+  - B605  # start_process_with_a_shell
+  - B606  # start_process_with_no_shell
+  - B607  # start_process_with_partial_path
+
+  # XSS and code injection
+  - B703  # django_mark_safe
+
+# ============================================================================
+# SKIPS - TESTS A IGNORAR TEMPORALMENTE
+# ============================================================================
+
+# Tests que pueden generar falsos positivos en nuestro contexto
+skips:
+  # B101: Assert statements - útiles en development/testing
+  - B101
+  
+  # B110: try/except pass - común en logging y error handling
+  # Descomenta si tienes muchos falsos positivos:
+  # - B110
+
+# ============================================================================
+# CONFIGURACIÓN POR SEVERIDAD
+# ============================================================================
+
+# Nivel mínimo de severidad a reportar
+# Opciones: LOW, MEDIUM, HIGH
+confidence: MEDIUM
+severity: MEDIUM
+
+# ============================================================================
+# FORMATO DE OUTPUT
+# ============================================================================
+
+# Formato de reporte (json, csv, txt, html, xml)
+format: json
+
+# Archivo de salida (opcional)
+output_file: "bandit-report.json"
+
+# ============================================================================
+# CONFIGURACIÓN ESPECÍFICA PARA PHISHING DETECTOR
+# ============================================================================
+
+# Reglas personalizadas para nuestro proyecto
+baseline: []  # Baseline vacía inicialmente
+
+# ============================================================================
+# ALLOWLIST - EXCEPCIONES ESPECÍFICAS
+# ============================================================================
+
+# Nosotros rules - código que sabemos que es seguro
+nosec:
+  # Permitir uso de requests sin verificación SSL en development
+  # (usado para testing local)
+  - "B501:requests_missing_timeout"  # En src/gemini_client.py para timeouts configurables
+  
+  # Permitir subprocess con shell=False para comandos específicos
+  # (usado para verificaciones de DNS/whois)
+  - "B603:subprocess_without_shell_equals_true"  # En src/header_analysis.py para nslookup/whois
+
+# ============================================================================
+# CONFIGURACIÓN AVANZADA
+# ============================================================================
+
+# Habilitar plugins adicionales
+plugins: []
+
+# Configurar timeouts
+timeout: 300  # 5 minutos máximo
+
+# ============================================================================
+# REGLAS PERSONALIZADAS PARA DETECCIÓN DE PHISHING
+# ============================================================================
+
+# Configuración específica para vulnerabilidades en detección de phishing
+additional_checks:
+  # Verificar que las URLs se validen apropiadamente
+  url_validation: true
+  
+  # Verificar que los headers de email se saniticen
+  email_sanitization: true
+  
+  # Verificar manejo seguro de contenido HTML
+  html_sanitization: true
+
+# ============================================================================
+# CONFIGURACIÓN DE REPORTS
+# ============================================================================
+
+# Incluir código fuente en reportes
+include_source: true
+
+# Incluir métricas de severidad
+include_metrics: true
+
+# ============================================================================
+# PROFILES - CONFIGURACIONES POR AMBIENTE
+# ============================================================================
+
+profiles:
+  development:
+    severity: LOW
+    confidence: LOW
+    skips:
+      - B101  # Allows asserts in development
+      - B110  # Allows try/except pass for debugging
+  
+  staging:
+    severity: MEDIUM
+    confidence: MEDIUM
+    
+  production:
+    severity: HIGH
+    confidence: HIGH
+    # No skips en production - máxima seguridad
+
+# ============================================================================
+# CONFIGURACIÓN DE CI/CD
+# ============================================================================
+
+# Configuración específica para GitHub Actions
+ci_config:
+  # Fallar el build en vulnerabilidades HIGH
+  fail_on_high: true
+  
+  # Generar SARIF para GitHub Security tab
+  generate_sarif: true
+  
+  # Baseline automático
+  auto_baseline: false

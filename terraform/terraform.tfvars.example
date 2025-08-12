@@ -1,0 +1,176 @@
+# ============================================================================
+# EJEMPLO DE CONFIGURACIÓN TERRAFORM VARIABLES
+# Copia este archivo como terraform.tfvars y ajusta los valores
+# ============================================================================
+
+# ============================================================================
+# CONFIGURACIÓN BÁSICA REQUERIDA
+# ============================================================================
+
+# ID del proyecto GCP - REQUERIDO
+project_id = "your-gcp-project-id"
+
+# Región principal para deployment
+region = "us-central1"
+
+# Ambiente (dev, staging, production)
+environment = "dev"
+
+# Repositorio GitHub para Workload Identity Federation
+github_repository = "your-org/phishing-detector"
+
+# ============================================================================
+# CONFIGURACIÓN DE CONTACTO Y ALERTAS
+# ============================================================================
+
+# Email para recibir alertas (opcional pero recomendado)
+alert_email = "devops@your-company.com"
+
+# Email de contacto del equipo
+contact_email = "security@your-company.com"
+
+# Centro de costo para tracking
+cost_center = "security-automation"
+
+# Equipo responsable
+team = "security"
+
+# ============================================================================
+# CONFIGURACIÓN DE SLO Y PERFORMANCE
+# ============================================================================
+
+# Umbral de latencia para SLO (en milliseconds)
+slo_latency_threshold = 2000
+
+# Umbral de disponibilidad para SLO (percentage)
+slo_availability_threshold = 99.5
+
+# Límite de rate limiting (requests por minuto)
+api_rate_limit = 1000
+
+# ============================================================================
+# CONFIGURACIÓN AVANZADA (OPCIONAL)
+# ============================================================================
+
+# Habilitar stack completo de monitoring
+enable_monitoring = true
+
+# Habilitar Load Balancer global (solo para production)
+enable_load_balancer = false
+
+# Habilitar Cloud CDN (requiere Load Balancer)
+enable_cdn = false
+
+# Habilitar WAF (Cloud Armor)
+enable_waf = false
+
+# ============================================================================
+# OVERRIDES DE RECURSOS (OPCIONAL)
+# ============================================================================
+
+# Override número mínimo de instancias
+# min_instances_override = 1
+
+# Override número máximo de instancias  
+# max_instances_override = 50
+
+# Override memoria del contenedor
+# memory_override = "4Gi"
+
+# Override CPU del contenedor
+# cpu_override = 2
+
+# ============================================================================
+# CONFIGURACIÓN DE SEGURIDAD
+# ============================================================================
+
+# Orígenes permitidos para CORS
+allowed_origins = [
+  "https://*.googleapis.com",
+  "https://*.google.com",
+  "https://script.google.com"
+]
+
+# Hosts permitidos
+allowed_hosts = ["*"]
+
+# ============================================================================
+# CONFIGURACIÓN DE LOGS Y RETENCIÓN
+# ============================================================================
+
+# Días de retención para logs
+retention_days = 30
+
+# ============================================================================
+# CONFIGURACIÓN DE BACKUP Y DR
+# ============================================================================
+
+# Habilitar backups automáticos
+enable_backup = true
+
+# Schedule para backups (cron format)
+backup_schedule = "0 2 * * *"  # Diario a las 2 AM
+
+# Habilitar deployment multi-región
+enable_multi_region = false
+
+# Región secundaria (si multi-región está habilitado)
+secondary_region = "us-east1"
+
+# ============================================================================
+# ETIQUETAS ADICIONALES
+# ============================================================================
+
+additional_labels = {
+  application = "phishing-detector"
+  owner      = "security-team"
+  budget     = "security-tools"
+}
+
+# ============================================================================
+# CONFIGURACIÓN POR AMBIENTE
+# ============================================================================
+
+# DEVELOPMENT ENVIRONMENT
+# environment = "dev"
+# min_instances_override = 0
+# max_instances_override = 10
+# memory_override = "2Gi"
+# cpu_override = 1
+# enable_load_balancer = false
+# enable_monitoring = true
+
+# STAGING ENVIRONMENT  
+# environment = "staging"
+# min_instances_override = 1
+# max_instances_override = 25
+# memory_override = "4Gi"
+# cpu_override = 2
+# enable_load_balancer = false
+# enable_monitoring = true
+
+# PRODUCTION ENVIRONMENT
+# environment = "production"
+# min_instances_override = 2
+# max_instances_override = 100
+# memory_override = "8Gi"
+# cpu_override = 4
+# enable_load_balancer = true
+# enable_cdn = true
+# enable_waf = true
+# enable_monitoring = true
+# enable_multi_region = true
+
+# ============================================================================
+# NOTAS DE CONFIGURACIÓN
+# ============================================================================
+
+# 1. Asegúrate de que el project_id corresponde a tu proyecto GCP
+# 2. El github_repository debe coincidir exactamente con tu repo
+# 3. Para production, considera habilitar:
+#    - enable_load_balancer = true
+#    - enable_cdn = true  
+#    - enable_waf = true
+#    - enable_multi_region = true
+# 4. Los overrides de recursos son opcionales y sobrescriben defaults
+# 5. El alert_email es opcional pero muy recomendado para production

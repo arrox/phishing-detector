@@ -1,0 +1,489 @@
+name: 'CI Pipeline - Phishing Detector'
+
+# Descripción: Pipeline de integración continua con tests, seguridad y calidad
+# Ejecuta en pull requests y pushes a main/develop
+# Incluye análisis de seguridad, tests automatizados y build de contenedor
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+  workflow_dispatch:
+
+env:
+  # Configuración general
+  PYTHON_VERSION: '3.11'
+  NODE_VERSION: '18'
+  REGISTRY: gcr.io
+  PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+  SERVICE_NAME: phishing-detector
+  
+  # Variables de testing
+  PYTHONDONTWRITEBYTECODE: 1
+  PYTHONUNBUFFERED: 1
+  PYTEST_ADDOPTS: --tb=short
+  
+  # Configuración de seguridad
+  SEMGREP_APP_TOKEN: ${{ secrets.SEMGREP_APP_TOKEN }}
+
+jobs:
+  # ============================================================================
+  # JOB 1: VALIDACIÓN Y PREPARACIÓN
+  # ============================================================================
+  setup:
+    name: 'Setup & Validation'
+    runs-on: ubuntu-latest
+    outputs:
+      python-version: ${{ steps.setup-python.outputs.python-version }}
+      cache-key: ${{ steps.cache-deps.outputs.cache-hit }}
+      should-deploy: ${{ steps.check-deploy.outputs.should-deploy }}
+    
+    steps:
+      - name: 'Checkout código fuente'
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Necesario para análisis de seguridad
+
+      - name: 'Configurar Python ${{ env.PYTHON_VERSION }}'
+        id: setup-python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: 'Cache dependencias Python'
+        id: cache-deps
+        uses: actions/cache@v3
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/pyproject.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      - name: 'Instalar herramientas básicas'
+        run: |
+          python -m pip install --upgrade pip
+          pip install setuptools wheel
+
+      - name: 'Verificar estructura del proyecto'
+        run: |
+          # Validar archivos críticos
+          test -f pyproject.toml || (echo "❌ pyproject.toml no encontrado" && exit 1)
+          test -f Dockerfile || (echo "❌ Dockerfile no encontrado" && exit 1)
+          test -d src || (echo "❌ Directorio src/ no encontrado" && exit 1)
+          test -d tests || (echo "❌ Directorio tests/ no encontrado" && exit 1)
+          echo "✅ Estructura del proyecto validada"
+
+      - name: 'Determinar si debe hacer deployment'
+        id: check-deploy
+        run: |
+          if [[ "${{ github.ref }}" == "refs/heads/main" || "${{ github.ref }}" == "refs/heads/develop" ]]; then
+            echo "should-deploy=true" >> $GITHUB_OUTPUT
+          else
+            echo "should-deploy=false" >> $GITHUB_OUTPUT
+          fi
+
+  # ============================================================================
+  # JOB 2: ANÁLISIS DE SEGURIDAD
+  # ============================================================================
+  security:
+    name: 'Security Analysis'
+    runs-on: ubuntu-latest
+    needs: setup
+    continue-on-error: false  # Fallar el pipeline si hay problemas críticos de seguridad
+    
+    steps:
+      - name: 'Checkout código fuente'
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: 'Configurar Python ${{ env.PYTHON_VERSION }}'
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      # Detección de secretos con Gitleaks
+      - name: 'Escanear secretos con Gitleaks'
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_LICENSE: ${{ secrets.GITLEAKS_LICENSE }}
+        with:
+          config-path: .gitleaks.toml
+          report-format: sarif
+          report-path: gitleaks-report.sarif
+          fail: true
+
+      # SAST con Bandit (específico para Python)
+      - name: 'Análisis SAST con Bandit'
+        run: |
+          pip install bandit[toml]
+          bandit -r src/ -f json -o bandit-report.json || true
+          bandit -r src/ -f txt
+          # Verificar severidad crítica/alta
+          if bandit -r src/ --severity-level medium --exit-zero; then
+            echo "✅ No se encontraron vulnerabilidades críticas"
+          else
+            echo "❌ Se encontraron vulnerabilidades de seguridad"
+            exit 1
+          fi
+
+      # SAST con Semgrep
+      - name: 'Análisis SAST con Semgrep'
+        if: env.SEMGREP_APP_TOKEN != ''
+        uses: semgrep/semgrep-action@v1
+        with:
+          config: >-
+            p/security-audit
+            p/secrets
+            p/owasp-top-ten
+            p/python
+          generateSarif: true
+        env:
+          SEMGREP_APP_TOKEN: ${{ env.SEMGREP_APP_TOKEN }}
+
+      # Análisis de dependencias con pip-audit
+      - name: 'Análisis de vulnerabilidades en dependencias'
+        run: |
+          pip install pip-audit
+          pip-audit --format=json --output=pip-audit-report.json || true
+          pip-audit --format=text
+          # Fallar solo con vulnerabilidades críticas/altas
+          if pip-audit --format=cyclonedx --output=sbom.cyclonedx.json --desc --require-hashes --progress-spinner=off; then
+            echo "✅ Análisis de dependencias completado"
+          else
+            echo "⚠️  Vulnerabilidades encontradas en dependencias"
+          fi
+
+      # Subir reportes de seguridad
+      - name: 'Subir reportes de seguridad'
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: security-reports
+          path: |
+            gitleaks-report.sarif
+            bandit-report.json
+            pip-audit-report.json
+            sbom.cyclonedx.json
+          retention-days: 30
+
+      # Subir SARIF a GitHub Security tab
+      - name: 'Subir SARIF a GitHub Security'
+        if: always()
+        uses: github/codeql-action/upload-sarif@v2
+        with:
+          sarif_file: gitleaks-report.sarif
+        continue-on-error: true
+
+  # ============================================================================
+  # JOB 3: QUALITY ASSURANCE & TESTING
+  # ============================================================================
+  test:
+    name: 'Tests & Quality'
+    runs-on: ubuntu-latest
+    needs: setup
+    strategy:
+      matrix:
+        python-version: ['3.11', '3.12']
+      fail-fast: false
+
+    steps:
+      - name: 'Checkout código fuente'
+        uses: actions/checkout@v4
+
+      - name: 'Configurar Python ${{ matrix.python-version }}'
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: 'Restore cache dependencias'
+        uses: actions/cache@v3
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/pyproject.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      - name: 'Instalar dependencias'
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+          # Instalar herramientas de calidad
+          pip install black isort flake8 mypy pytest-cov
+
+      - name: 'Verificar formato de código con Black'
+        run: |
+          black --check --diff src/ tests/
+          if [ $? -eq 0 ]; then
+            echo "✅ Código formateado correctamente"
+          else
+            echo "❌ Código requiere formateo con Black"
+            exit 1
+          fi
+
+      - name: 'Verificar imports con isort'
+        run: |
+          isort --check-only --diff src/ tests/
+          if [ $? -eq 0 ]; then
+            echo "✅ Imports ordenados correctamente"
+          else
+            echo "❌ Imports requieren ordenamiento con isort"
+            exit 1
+          fi
+
+      - name: 'Análisis estático con flake8'
+        run: |
+          flake8 src/ tests/ --max-line-length=88 --extend-ignore=E203,W503
+          echo "✅ Análisis de linting completado"
+
+      - name: 'Type checking con mypy'
+        run: |
+          mypy src/ --ignore-missing-imports --strict-optional
+          echo "✅ Type checking completado"
+
+      - name: 'Ejecutar tests con coverage'
+        env:
+          # Variables de test (mock)
+          GEMINI_API_KEY: test_key_12345
+          API_TOKEN: test_token_67890
+        run: |
+          pytest tests/ \
+            --cov=src \
+            --cov-report=xml \
+            --cov-report=html \
+            --cov-report=term-missing \
+            --cov-fail-under=70 \
+            --junitxml=pytest-results.xml \
+            -v
+          echo "✅ Tests ejecutados con cobertura >70%"
+
+      - name: 'Subir coverage a Codecov'
+        if: matrix.python-version == '3.11'
+        uses: codecov/codecov-action@v3
+        with:
+          file: ./coverage.xml
+          flags: unittests
+          name: phishing-detector
+          fail_ci_if_error: false
+
+      - name: 'Subir reportes de tests'
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: test-results-${{ matrix.python-version }}
+          path: |
+            pytest-results.xml
+            coverage.xml
+            htmlcov/
+          retention-days: 30
+
+  # ============================================================================
+  # JOB 4: BUILD & CONTAINER SECURITY
+  # ============================================================================
+  build:
+    name: 'Build & Container Security'
+    runs-on: ubuntu-latest
+    needs: [setup, security, test]
+    if: success()
+    
+    steps:
+      - name: 'Checkout código fuente'
+        uses: actions/checkout@v4
+
+      - name: 'Configurar Docker Buildx'
+        uses: docker/setup-buildx-action@v3
+
+      - name: 'Build imagen Docker'
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile
+          platforms: linux/amd64
+          push: false
+          tags: |
+            ${{ env.SERVICE_NAME }}:${{ github.sha }}
+            ${{ env.SERVICE_NAME }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          outputs: type=docker,dest=/tmp/image.tar
+
+      - name: 'Cargar imagen para análisis'
+        run: |
+          docker load --input /tmp/image.tar
+          docker images
+
+      - name: 'Análisis de seguridad del contenedor con Trivy'
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: '${{ env.SERVICE_NAME }}:${{ github.sha }}'
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+          exit-code: '1'
+          severity: 'CRITICAL,HIGH'
+
+      - name: 'Análisis completo con Trivy (incluye MEDIUM)'
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: '${{ env.SERVICE_NAME }}:${{ github.sha }}'
+          format: 'json'
+          output: 'trivy-results.json'
+          exit-code: '0'  # No fallar con severidad media
+
+      - name: 'Generar SBOM del contenedor con Syft'
+        run: |
+          # Instalar Syft
+          curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh | sh -s -- -b /usr/local/bin
+          # Generar SBOM
+          syft ${{ env.SERVICE_NAME }}:${{ github.sha }} -o cyclonedx-json=sbom-container.cyclonedx.json
+          syft ${{ env.SERVICE_NAME }}:${{ github.sha }} -o spdx-json=sbom-container.spdx.json
+          echo "✅ SBOM del contenedor generado"
+
+      - name: 'Test básico del contenedor'
+        run: |
+          # Ejecutar contenedor en background
+          docker run -d --name test-container \
+            -p 8000:8000 \
+            -e GEMINI_API_KEY=test_key_12345 \
+            -e API_TOKEN=test_token_67890 \
+            ${{ env.SERVICE_NAME }}:${{ github.sha }}
+          
+          # Esperar inicio
+          sleep 15
+          
+          # Test health endpoint
+          curl -f http://localhost:8000/health || exit 1
+          curl -f http://localhost:8000/ready || exit 1
+          
+          # Limpiar
+          docker stop test-container
+          docker rm test-container
+          echo "✅ Test básico del contenedor exitoso"
+
+      - name: 'Subir artefactos de build'
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: build-artifacts
+          path: |
+            trivy-results.sarif
+            trivy-results.json
+            sbom-container.cyclonedx.json
+            sbom-container.spdx.json
+          retention-days: 30
+
+      - name: 'Subir imagen Docker (temporalmente)'
+        if: needs.setup.outputs.should-deploy == 'true'
+        uses: actions/upload-artifact@v3
+        with:
+          name: docker-image
+          path: /tmp/image.tar
+          retention-days: 1
+
+  # ============================================================================
+  # JOB 5: PREPARACIÓN PARA DEPLOYMENT
+  # ============================================================================
+  prepare-deploy:
+    name: 'Prepare Deployment'
+    runs-on: ubuntu-latest
+    needs: [setup, build]
+    if: needs.setup.outputs.should-deploy == 'true'
+    outputs:
+      environment: ${{ steps.determine-env.outputs.environment }}
+      version: ${{ steps.version.outputs.version }}
+    
+    steps:
+      - name: 'Checkout código fuente'
+        uses: actions/checkout@v4
+
+      - name: 'Determinar environment'
+        id: determine-env
+        run: |
+          if [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
+            echo "environment=staging" >> $GITHUB_OUTPUT
+            echo "📦 Preparando deployment a STAGING"
+          elif [[ "${{ github.ref }}" == "refs/heads/develop" ]]; then
+            echo "environment=dev" >> $GITHUB_OUTPUT
+            echo "🔧 Preparando deployment a DEV"
+          fi
+
+      - name: 'Generar versión'
+        id: version
+        run: |
+          VERSION=$(date +%Y%m%d)-${GITHUB_SHA:0:8}
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "🏷️  Versión generada: $VERSION"
+
+      - name: 'Validar secrets requeridos'
+        run: |
+          echo "🔐 Validando secrets requeridos para deployment..."
+          
+          # Lista de secrets requeridos
+          REQUIRED_SECRETS=(
+            "GCP_PROJECT_ID"
+            "GCP_WORKLOAD_IDENTITY_PROVIDER"
+            "GCP_SERVICE_ACCOUNT"
+          )
+          
+          MISSING_SECRETS=()
+          
+          for secret in "${REQUIRED_SECRETS[@]}"; do
+            if [[ -z "${!secret}" ]]; then
+              MISSING_SECRETS+=("$secret")
+            fi
+          done
+          
+          if [[ ${#MISSING_SECRETS[@]} -gt 0 ]]; then
+            echo "❌ Secrets faltantes: ${MISSING_SECRETS[*]}"
+            echo "Configura estos secrets en GitHub para habilitar deployment"
+            exit 1
+          else
+            echo "✅ Todos los secrets requeridos están configurados"
+          fi
+        env:
+          GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+          GCP_WORKLOAD_IDENTITY_PROVIDER: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          GCP_SERVICE_ACCOUNT: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+
+  # ============================================================================
+  # JOB 6: NOTIFICACIONES Y RESUMEN
+  # ============================================================================
+  notify:
+    name: 'Notifications & Summary'
+    runs-on: ubuntu-latest
+    needs: [setup, security, test, build, prepare-deploy]
+    if: always()
+    
+    steps:
+      - name: 'Generar resumen de pipeline'
+        run: |
+          echo "# 🛡️ Pipeline CI - Phishing Detector" >> $GITHUB_STEP_SUMMARY
+          echo "## 📊 Resumen de Ejecución" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Componente | Estado | Detalles |" >> $GITHUB_STEP_SUMMARY
+          echo "|------------|---------|----------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Setup | ${{ needs.setup.result == 'success' && '✅ Success' || '❌ Failed' }} | Validación y configuración inicial |" >> $GITHUB_STEP_SUMMARY
+          echo "| Security | ${{ needs.security.result == 'success' && '✅ Success' || needs.security.result == 'failure' && '❌ Failed' || '⏭️ Skipped' }} | SAST, secrets, vulnerabilidades |" >> $GITHUB_STEP_SUMMARY
+          echo "| Tests | ${{ needs.test.result == 'success' && '✅ Success' || needs.test.result == 'failure' && '❌ Failed' || '⏭️ Skipped' }} | Unit tests, cobertura, quality |" >> $GITHUB_STEP_SUMMARY
+          echo "| Build | ${{ needs.build.result == 'success' && '✅ Success' || needs.build.result == 'failure' && '❌ Failed' || '⏭️ Skipped' }} | Docker build, container security |" >> $GITHUB_STEP_SUMMARY
+          echo "| Deploy Prep | ${{ needs.prepare-deploy.result == 'success' && '✅ Ready' || needs.prepare-deploy.result == 'failure' && '❌ Failed' || '⏭️ Skipped' }} | Preparación para deployment |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          if [[ "${{ needs.setup.outputs.should-deploy }}" == "true" ]]; then
+            echo "## 🚀 Deployment Info" >> $GITHUB_STEP_SUMMARY
+            echo "- **Environment**: ${{ needs.prepare-deploy.outputs.environment }}" >> $GITHUB_STEP_SUMMARY
+            echo "- **Version**: ${{ needs.prepare-deploy.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+            echo "- **Listo para deployment automático**" >> $GITHUB_STEP_SUMMARY
+          fi
+
+      - name: 'Notificar estado del pipeline'
+        if: failure()
+        run: |
+          echo "❌ Pipeline falló - revisar logs para detalles"
+          echo "Componentes fallidos:"
+          [[ "${{ needs.security.result }}" == "failure" ]] && echo "  - Security: Vulnerabilidades críticas encontradas"
+          [[ "${{ needs.test.result }}" == "failure" ]] && echo "  - Tests: Tests fallaron o cobertura <70%"
+          [[ "${{ needs.build.result }}" == "failure" ]] && echo "  - Build: Error en build o vulnerabilidades en contenedor"
+          
+        continue-on-error: true

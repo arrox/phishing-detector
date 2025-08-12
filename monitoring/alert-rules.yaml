@@ -1,0 +1,374 @@
+# ============================================================================
+# PROMETHEUS ALERT RULES
+# Reglas de alertas para monitoreo del servicio Phishing Detector
+# Incluye SLO, seguridad, performance y business metrics
+# ============================================================================
+
+groups:
+  # ============================================================================
+  # GRUPO: SLO Y DISPONIBILIDAD
+  # ============================================================================
+  - name: phishing_detector.slo_alerts
+    interval: 30s
+    rules:
+      # Alerta crítica: Servicio no disponible
+      - alert: PhishingDetectorDown
+        expr: up{service="phishing-detector"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          service: phishing-detector
+          alert_type: availability
+        annotations:
+          summary: "🚨 Servicio Phishing Detector no disponible"
+          description: |
+            El servicio de detección de phishing no está respondiendo.
+            
+            **Impacto:** Los usuarios no pueden usar la funcionalidad de detección.
+            **Ambiente:** {{ $labels.environment }}
+            **Instancia:** {{ $labels.instance }}
+            
+            **Acciones inmediatas:**
+            1. Verificar estado del contenedor Cloud Run
+            2. Revisar logs de la aplicación
+            3. Verificar recursos (CPU/memoria)
+            4. Ejecutar rollback si es necesario
+          runbook: "https://wiki.company.com/runbooks/phishing-detector-down"
+
+      # Alerta: SLO de latencia violado
+      - alert: PhishingDetectorHighLatency  
+        expr: histogram_quantile(0.95, rate(phishing_request_duration_seconds_bucket{endpoint="/classify"}[5m])) > 0.002
+        for: 5m
+        labels:
+          severity: warning
+          service: phishing-detector
+          alert_type: performance
+          slo: latency
+        annotations:
+          summary: "⚠️ SLO de latencia violado - P95 > 2 segundos"
+          description: |
+            La latencia P95 del endpoint de clasificación está por encima del SLO.
+            
+            **Latencia actual:** {{ $value | humanizeDuration }}
+            **SLO:** < 2 segundos
+            **Ambiente:** {{ $labels.environment }}
+            
+            **Posibles causas:**
+            - Sobrecarga del servicio
+            - Problemas con Gemini API
+            - Recursos insuficientes
+            - Problemas de red
+
+      # Alerta: SLO de disponibilidad violado
+      - alert: PhishingDetectorLowAvailability
+        expr: (rate(phishing_requests_total{status!~"5.."}[10m]) / rate(phishing_requests_total[10m])) * 100 < 99.5
+        for: 5m
+        labels:
+          severity: critical
+          service: phishing-detector
+          alert_type: availability
+          slo: availability
+        annotations:
+          summary: "🚨 SLO de disponibilidad violado - < 99.5%"
+          description: |
+            La disponibilidad del servicio está por debajo del SLO.
+            
+            **Disponibilidad actual:** {{ $value | printf "%.2f" }}%
+            **SLO:** ≥ 99.5%
+            **Ambiente:** {{ $labels.environment }}
+
+  # ============================================================================
+  # GRUPO: ERRORES Y PERFORMANCE
+  # ============================================================================
+  - name: phishing_detector.error_alerts
+    interval: 30s
+    rules:
+      # Alerta: Tasa alta de errores
+      - alert: PhishingDetectorHighErrorRate
+        expr: (rate(phishing_requests_total{status=~"5.."}[5m]) / rate(phishing_requests_total[5m])) * 100 > 5
+        for: 3m
+        labels:
+          severity: warning
+          service: phishing-detector
+          alert_type: error_rate
+        annotations:
+          summary: "⚠️ Tasa alta de errores 5xx - {{ $value | printf \"%.2f\" }}%"
+          description: |
+            El servicio está devolviendo una tasa alta de errores HTTP 5xx.
+            
+            **Tasa de error:** {{ $value | printf "%.2f" }}%
+            **Umbral:** 5%
+            **Ambiente:** {{ $labels.environment }}
+
+      # Alerta crítica: Tasa muy alta de errores
+      - alert: PhishingDetectorCriticalErrorRate
+        expr: (rate(phishing_requests_total{status=~"5.."}[5m]) / rate(phishing_requests_total[5m])) * 100 > 15
+        for: 1m
+        labels:
+          severity: critical
+          service: phishing-detector
+          alert_type: error_rate
+        annotations:
+          summary: "🚨 Tasa crítica de errores 5xx - {{ $value | printf \"%.2f\" }}%"
+          description: |
+            El servicio está devolviendo una tasa crítica de errores.
+            
+            **Tasa de error:** {{ $value | printf "%.2f" }}%
+            **Umbral crítico:** 15%
+            **Ambiente:** {{ $labels.environment }}
+            
+            **Acción requerida:** Rollback inmediato
+
+      # Alerta: Errores internos frecuentes
+      - alert: PhishingDetectorInternalErrors
+        expr: rate(phishing_errors_total{error_type="internal_error"}[5m]) > 0.1
+        for: 2m
+        labels:
+          severity: warning
+          service: phishing-detector
+          alert_type: internal_error
+        annotations:
+          summary: "⚠️ Errores internos frecuentes - {{ $value | printf \"%.2f\" }}/s"
+          description: |
+            Se están produciendo errores internos con frecuencia inusual.
+            
+            **Tasa:** {{ $value | printf "%.2f" }} errores/segundo
+            **Ambiente:** {{ $labels.environment }}
+
+  # ============================================================================
+  # GRUPO: RECURSOS Y INFRAESTRUCTURA
+  # ============================================================================
+  - name: phishing_detector.resource_alerts
+    interval: 60s
+    rules:
+      # Alerta: Alto uso de CPU
+      - alert: PhishingDetectorHighCPU
+        expr: rate(container_cpu_usage_seconds_total{container="phishing-detector"}[5m]) * 100 > 80
+        for: 10m
+        labels:
+          severity: warning
+          service: phishing-detector
+          alert_type: resource
+          resource_type: cpu
+        annotations:
+          summary: "⚠️ Alto uso de CPU - {{ $value | printf \"%.1f\" }}%"
+          description: |
+            El contenedor está usando un alto porcentaje de CPU.
+            
+            **Uso actual:** {{ $value | printf "%.1f" }}%
+            **Umbral:** 80%
+            **Ambiente:** {{ $labels.environment }}
+            **Instancia:** {{ $labels.instance }}
+
+      # Alerta: Alto uso de memoria
+      - alert: PhishingDetectorHighMemory
+        expr: (container_memory_usage_bytes{container="phishing-detector"} / container_spec_memory_limit_bytes{container="phishing-detector"}) * 100 > 85
+        for: 5m
+        labels:
+          severity: warning
+          service: phishing-detector
+          alert_type: resource
+          resource_type: memory
+        annotations:
+          summary: "⚠️ Alto uso de memoria - {{ $value | printf \"%.1f\" }}%"
+          description: |
+            El contenedor está usando un alto porcentaje de memoria.
+            
+            **Uso actual:** {{ $value | printf "%.1f" }}%
+            **Umbral:** 85%
+            **Ambiente:** {{ $labels.environment }}
+
+      # Alerta: Pods reiniciándose frecuentemente
+      - alert: PhishingDetectorFrequentRestarts
+        expr: increase(kube_pod_container_status_restarts_total{container="phishing-detector"}[1h]) > 3
+        for: 0m
+        labels:
+          severity: warning
+          service: phishing-detector
+          alert_type: stability
+        annotations:
+          summary: "⚠️ Reiniciados frecuentes del contenedor - {{ $value }} en 1h"
+          description: |
+            El contenedor se está reiniciando con frecuencia inusual.
+            
+            **Reinicios:** {{ $value }} en la última hora
+            **Umbral:** 3 reinicios/hora
+            **Ambiente:** {{ $labels.environment }}
+
+  # ============================================================================
+  # GRUPO: INTEGRACIÓN GEMINI API
+  # ============================================================================
+  - name: phishing_detector.gemini_alerts
+    interval: 30s
+    rules:
+      # Alerta: Errores en Gemini API
+      - alert: GeminiAPIErrors
+        expr: rate(gemini_api_errors_total[5m]) > 0.05
+        for: 2m
+        labels:
+          severity: warning
+          service: phishing-detector
+          alert_type: external_dependency
+          dependency: gemini_api
+        annotations:
+          summary: "⚠️ Errores en Gemini API - {{ $value | printf \"%.3f\" }}/s"
+          description: |
+            La integración con Gemini API está produciendo errores.
+            
+            **Tasa de error:** {{ $value | printf "%.3f" }} errores/segundo
+            **Ambiente:** {{ $labels.environment }}
+            
+            **Posibles causas:**
+            - Rate limits de Google AI
+            - Problemas de conectividad
+            - API key inválida o expirada
+            - Problemas del servicio Gemini
+
+      # Alerta: Alta latencia en Gemini API
+      - alert: GeminiAPIHighLatency
+        expr: histogram_quantile(0.95, rate(gemini_api_duration_seconds_bucket[5m])) > 10
+        for: 5m
+        labels:
+          severity: warning
+          service: phishing-detector
+          alert_type: external_dependency
+          dependency: gemini_api
+        annotations:
+          summary: "⚠️ Alta latencia en Gemini API - {{ $value | humanizeDuration }}"
+          description: |
+            La latencia P95 de Gemini API está por encima de lo normal.
+            
+            **Latencia P95:** {{ $value | humanizeDuration }}
+            **Umbral:** 10 segundos
+            **Ambiente:** {{ $labels.environment }}
+
+  # ============================================================================
+  # GRUPO: SEGURIDAD
+  # ============================================================================
+  - name: phishing_detector.security_alerts
+    interval: 30s
+    rules:
+      # Alerta: Múltiples fallos de autenticación
+      - alert: PhishingDetectorAuthFailures
+        expr: rate(phishing_errors_total{error_type="authentication_failed"}[5m]) > 1
+        for: 2m
+        labels:
+          severity: warning
+          service: phishing-detector
+          alert_type: security
+          security_type: authentication
+        annotations:
+          summary: "🛡️ Múltiples fallos de autenticación - {{ $value | printf \"%.2f\" }}/s"
+          description: |
+            Se están produciendo múltiples fallos de autenticación.
+            
+            **Tasa:** {{ $value | printf "%.2f" }} fallos/segundo
+            **Ambiente:** {{ $labels.environment }}
+            
+            **Posibles causas:**
+            - Intento de acceso no autorizado
+            - API key incorrecta en clientes
+            - Ataque de fuerza bruta
+
+      # Alerta crítica: Posible ataque
+      - alert: PhishingDetectorPossibleAttack
+        expr: rate(phishing_errors_total{error_type="authentication_failed"}[1m]) > 10
+        for: 1m
+        labels:
+          severity: critical
+          service: phishing-detector
+          alert_type: security
+          security_type: attack
+        annotations:
+          summary: "🚨 POSIBLE ATAQUE - {{ $value | printf \"%.1f\" }} fallos/s"
+          description: |
+            Se detecta un patrón de múltiples fallos de autenticación que sugiere un posible ataque.
+            
+            **Tasa:** {{ $value | printf "%.1f" }} fallos/segundo
+            **Ambiente:** {{ $labels.environment }}
+            
+            **ACCIÓN INMEDIATA REQUERIDA:**
+            - Revisar logs de seguridad
+            - Identificar IPs origen
+            - Considerar bloqueo temporal
+            - Notificar al equipo de seguridad
+
+  # ============================================================================
+  # GRUPO: BUSINESS METRICS
+  # ============================================================================
+  - name: phishing_detector.business_alerts
+    interval: 60s
+    rules:
+      # Alerta: Baja tasa de clasificaciones
+      - alert: PhishingDetectorLowClassificationRate
+        expr: rate(phishing_classifications_total[10m]) * 60 < 5
+        for: 15m
+        labels:
+          severity: info
+          service: phishing-detector
+          alert_type: business
+          metric_type: usage
+        annotations:
+          summary: "📊 Baja tasa de clasificaciones - {{ $value | printf \"%.1f\" }}/min"
+          description: |
+            La tasa de clasificaciones está por debajo de lo normal.
+            
+            **Tasa actual:** {{ $value | printf "%.1f" }} clasificaciones/minuto
+            **Umbral:** 5 clasificaciones/minuto
+            **Ambiente:** {{ $labels.environment }}
+            
+            **Posibles causas:**
+            - Baja adopción del servicio
+            - Problemas en Gmail Add-on
+            - Issues de conectividad
+
+      # Alerta: Alta tasa de phishing detectado
+      - alert: PhishingDetectorHighPhishingRate
+        expr: (rate(phishing_classifications_total{classification="phishing"}[10m]) / rate(phishing_classifications_total[10m])) * 100 > 25
+        for: 10m
+        labels:
+          severity: info
+          service: phishing-detector
+          alert_type: business
+          metric_type: security_trend
+        annotations:
+          summary: "🎯 Alta tasa de phishing detectado - {{ $value | printf \"%.1f\" }}%"
+          description: |
+            Se está detectando una tasa inusualmente alta de emails de phishing.
+            
+            **Tasa:** {{ $value | printf "%.1f" }}% de clasificaciones son phishing
+            **Umbral:** 25%
+            **Ambiente:** {{ $labels.environment }}
+            
+            **Consideraciones:**
+            - Posible campaña de phishing activa
+            - Notificar al equipo de threat intelligence
+            - Considerar alertas adicionales a usuarios
+
+  # ============================================================================
+  # GRUPO: ALERTAS DE DESARROLLO Y STAGING
+  # ============================================================================
+  - name: phishing_detector.dev_alerts
+    interval: 60s
+    rules:
+      # Alerta: Deployment fallido
+      - alert: PhishingDetectorDeploymentFailed
+        expr: increase(deployment_status{status="failed",service="phishing-detector"}[5m]) > 0
+        for: 0m
+        labels:
+          severity: warning
+          service: phishing-detector
+          alert_type: deployment
+          environment: "{{ $labels.environment }}"
+        annotations:
+          summary: "🚀 Deployment fallido en {{ $labels.environment }}"
+          description: |
+            Un deployment del servicio ha fallado.
+            
+            **Ambiente:** {{ $labels.environment }}
+            **Timestamp:** {{ $labels.timestamp }}
+            
+            **Acciones:**
+            - Revisar logs del deployment
+            - Verificar configuración
+            - Considerar rollback si es necesario

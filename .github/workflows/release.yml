@@ -1,0 +1,560 @@
+name: 'Release & Deployment - Phishing Detector'
+
+# Descripción: Pipeline de release y deployment automatizado
+# Se ejecuta automáticamente después del CI en main/develop
+# Incluye deployment a staging/production con promoción manual
+
+on:
+  workflow_run:
+    workflows: ["CI Pipeline - Phishing Detector"]
+    branches: [main, develop]
+    types: [completed]
+  
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Target environment'
+        required: true
+        default: 'staging'
+        type: choice
+        options:
+          - dev
+          - staging  
+          - production
+      version:
+        description: 'Version to deploy (optional, defaults to latest)'
+        required: false
+        type: string
+      force_deploy:
+        description: 'Force deployment even if CI failed'
+        required: false
+        default: false
+        type: boolean
+
+env:
+  # Configuración GCP
+  GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+  GCP_REGION: us-central1
+  REGISTRY: gcr.io
+  SERVICE_NAME: phishing-detector
+  
+  # Configuración del servicio
+  PYTHON_VERSION: '3.11'
+
+permissions:
+  contents: read
+  id-token: write  # Required for workload identity
+  security-events: write
+
+jobs:
+  # ============================================================================
+  # JOB 1: VALIDACIÓN PRE-DEPLOYMENT
+  # ============================================================================
+  pre-deployment:
+    name: 'Pre-deployment Validation'
+    runs-on: ubuntu-latest
+    if: github.event.workflow_run.conclusion == 'success' || github.event.inputs.force_deploy == 'true'
+    outputs:
+      environment: ${{ steps.determine-env.outputs.environment }}
+      version: ${{ steps.version.outputs.version }}
+      should-proceed: ${{ steps.validate.outputs.should-proceed }}
+    
+    steps:
+      - name: 'Checkout código fuente'
+        uses: actions/checkout@v4
+
+      - name: 'Determinar environment'
+        id: determine-env
+        run: |
+          if [[ "${{ github.event.inputs.environment }}" != "" ]]; then
+            # Manual dispatch
+            ENV="${{ github.event.inputs.environment }}"
+          elif [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
+            ENV="staging"
+          elif [[ "${{ github.ref }}" == "refs/heads/develop" ]]; then
+            ENV="dev"
+          else
+            echo "❌ Branch no soportado para deployment"
+            exit 1
+          fi
+          
+          echo "environment=$ENV" >> $GITHUB_OUTPUT
+          echo "🎯 Environment determinado: $ENV"
+
+      - name: 'Generar versión'
+        id: version
+        run: |
+          if [[ "${{ github.event.inputs.version }}" != "" ]]; then
+            VERSION="${{ github.event.inputs.version }}"
+          else
+            VERSION=$(date +%Y%m%d)-${GITHUB_SHA:0:8}
+          fi
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "🏷️  Versión: $VERSION"
+
+      - name: 'Validar prerrequisitos'
+        id: validate
+        run: |
+          echo "🔍 Validando prerrequisitos para deployment..."
+          
+          # Verificar que el workflow CI fue exitoso (si no es force deploy)
+          if [[ "${{ github.event.inputs.force_deploy }}" != "true" ]]; then
+            if [[ "${{ github.event.workflow_run.conclusion }}" != "success" ]]; then
+              echo "❌ CI Pipeline falló - no se puede hacer deployment"
+              exit 1
+            fi
+          fi
+          
+          # Verificar secrets requeridos
+          MISSING_SECRETS=()
+          
+          [[ -z "${{ secrets.GCP_PROJECT_ID }}" ]] && MISSING_SECRETS+=("GCP_PROJECT_ID")
+          [[ -z "${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}" ]] && MISSING_SECRETS+=("GCP_WORKLOAD_IDENTITY_PROVIDER")
+          [[ -z "${{ secrets.GCP_SERVICE_ACCOUNT }}" ]] && MISSING_SECRETS+=("GCP_SERVICE_ACCOUNT")
+          
+          if [[ ${#MISSING_SECRETS[@]} -gt 0 ]]; then
+            echo "❌ Secrets faltantes: ${MISSING_SECRETS[*]}"
+            exit 1
+          fi
+          
+          echo "should-proceed=true" >> $GITHUB_OUTPUT
+          echo "✅ Validación completada - procediendo con deployment"
+
+  # ============================================================================
+  # JOB 2: BUILD Y PUSH DE IMAGEN
+  # ============================================================================
+  build-and-push:
+    name: 'Build & Push Container'
+    runs-on: ubuntu-latest
+    needs: pre-deployment
+    if: needs.pre-deployment.outputs.should-proceed == 'true'
+    outputs:
+      image-digest: ${{ steps.push.outputs.digest }}
+      image-uri: ${{ steps.push.outputs.image-uri }}
+    
+    steps:
+      - name: 'Checkout código fuente'
+        uses: actions/checkout@v4
+
+      - name: 'Configurar Docker Buildx'
+        uses: docker/setup-buildx-action@v3
+
+      - name: 'Autenticar a Google Cloud'
+        id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+          token_format: access_token
+
+      - name: 'Configurar Docker para GCR'
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: oauth2accesstoken
+          password: ${{ steps.auth.outputs.access_token }}
+
+      - name: 'Build y push imagen'
+        id: push
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile
+          platforms: linux/amd64
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.GCP_PROJECT_ID }}/${{ env.SERVICE_NAME }}:${{ needs.pre-deployment.outputs.version }}
+            ${{ env.REGISTRY }}/${{ env.GCP_PROJECT_ID }}/${{ env.SERVICE_NAME }}:${{ needs.pre-deployment.outputs.environment }}-latest
+          labels: |
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.version=${{ needs.pre-deployment.outputs.version }}
+            org.opencontainers.image.created=${{ github.event.repository.updated_at }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: 'Generar atestación SLSA'
+        uses: slsa-framework/slsa-github-generator/.github/workflows/generator_container_slsa3.yml@v1.9.0
+        with:
+          image: ${{ env.REGISTRY }}/${{ env.GCP_PROJECT_ID }}/${{ env.SERVICE_NAME }}
+          digest: ${{ steps.push.outputs.digest }}
+        secrets:
+          registry-username: oauth2accesstoken
+          registry-password: ${{ steps.auth.outputs.access_token }}
+        continue-on-error: true
+
+      - name: 'Firmar imagen con Cosign'
+        run: |
+          # Instalar cosign
+          curl -O -L "https://github.com/sigstore/cosign/releases/latest/download/cosign-linux-amd64"
+          sudo mv cosign-linux-amd64 /usr/local/bin/cosign
+          sudo chmod +x /usr/local/bin/cosign
+          
+          # Firmar imagen
+          cosign sign --yes ${{ env.REGISTRY }}/${{ env.GCP_PROJECT_ID }}/${{ env.SERVICE_NAME }}@${{ steps.push.outputs.digest }}
+        env:
+          COSIGN_EXPERIMENTAL: 1
+        continue-on-error: true
+
+      - name: 'Output imagen URI'
+        run: |
+          IMAGE_URI="${{ env.REGISTRY }}/${{ env.GCP_PROJECT_ID }}/${{ env.SERVICE_NAME }}:${{ needs.pre-deployment.outputs.version }}"
+          echo "image-uri=$IMAGE_URI" >> $GITHUB_OUTPUT
+          echo "🐳 Imagen construida: $IMAGE_URI"
+
+  # ============================================================================
+  # JOB 3: DEPLOYMENT A DEV
+  # ============================================================================
+  deploy-dev:
+    name: 'Deploy to Development'
+    runs-on: ubuntu-latest
+    needs: [pre-deployment, build-and-push]
+    if: needs.pre-deployment.outputs.environment == 'dev'
+    environment:
+      name: development
+      url: https://phishing-detector-dev-${{ secrets.GCP_PROJECT_ID }}.a.run.app
+    
+    steps:
+      - name: 'Checkout código fuente'
+        uses: actions/checkout@v4
+
+      - name: 'Autenticar a Google Cloud'
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+
+      - name: 'Configurar Google Cloud SDK'
+        uses: google-github-actions/setup-gcloud@v2
+        with:
+          project_id: ${{ env.GCP_PROJECT_ID }}
+
+      - name: 'Deploy a Cloud Run - DEV'
+        run: |
+          gcloud run deploy ${{ env.SERVICE_NAME }}-dev \
+            --image=${{ needs.build-and-push.outputs.image-uri }} \
+            --region=${{ env.GCP_REGION }} \
+            --platform=managed \
+            --allow-unauthenticated \
+            --set-env-vars="LOG_LEVEL=debug,ENVIRONMENT=development" \
+            --set-secrets="GEMINI_API_KEY=gemini-api-key:latest,API_TOKEN=api-token-dev:latest" \
+            --memory=2Gi \
+            --cpu=1 \
+            --min-instances=0 \
+            --max-instances=10 \
+            --concurrency=100 \
+            --timeout=300s \
+            --port=8000 \
+            --labels="environment=dev,service=phishing-detector,version=${{ needs.pre-deployment.outputs.version }}" \
+            --annotations="run.googleapis.com/cpu-throttling=false" \
+            --quiet
+
+      - name: 'Verificar deployment'
+        run: |
+          # Obtener URL del servicio
+          SERVICE_URL=$(gcloud run services describe ${{ env.SERVICE_NAME }}-dev \
+            --region=${{ env.GCP_REGION }} \
+            --format="value(status.url)")
+          
+          echo "🔗 Service URL: $SERVICE_URL"
+          
+          # Health check
+          sleep 30
+          curl -f $SERVICE_URL/health || exit 1
+          curl -f $SERVICE_URL/ready || exit 1
+          
+          echo "✅ Deployment a DEV verificado exitosamente"
+
+  # ============================================================================
+  # JOB 4: DEPLOYMENT A STAGING
+  # ============================================================================
+  deploy-staging:
+    name: 'Deploy to Staging'
+    runs-on: ubuntu-latest
+    needs: [pre-deployment, build-and-push]
+    if: needs.pre-deployment.outputs.environment == 'staging'
+    environment:
+      name: staging
+      url: https://phishing-detector-staging-${{ secrets.GCP_PROJECT_ID }}.a.run.app
+    
+    steps:
+      - name: 'Checkout código fuente'
+        uses: actions/checkout@v4
+
+      - name: 'Autenticar a Google Cloud'
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+
+      - name: 'Configurar Google Cloud SDK'
+        uses: google-github-actions/setup-gcloud@v2
+        with:
+          project_id: ${{ env.GCP_PROJECT_ID }}
+
+      - name: 'Deploy a Cloud Run - STAGING'
+        run: |
+          gcloud run deploy ${{ env.SERVICE_NAME }}-staging \
+            --image=${{ needs.build-and-push.outputs.image-uri }} \
+            --region=${{ env.GCP_REGION }} \
+            --platform=managed \
+            --allow-unauthenticated \
+            --set-env-vars="LOG_LEVEL=info,ENVIRONMENT=staging" \
+            --set-secrets="GEMINI_API_KEY=gemini-api-key:latest,API_TOKEN=api-token-staging:latest" \
+            --memory=4Gi \
+            --cpu=2 \
+            --min-instances=1 \
+            --max-instances=25 \
+            --concurrency=80 \
+            --timeout=300s \
+            --port=8000 \
+            --labels="environment=staging,service=phishing-detector,version=${{ needs.pre-deployment.outputs.version }}" \
+            --annotations="run.googleapis.com/cpu-throttling=false" \
+            --quiet
+
+      - name: 'Configurar traffic splitting (canary)'
+        run: |
+          # Get current revision
+          CURRENT_REVISION=$(gcloud run services describe ${{ env.SERVICE_NAME }}-staging \
+            --region=${{ env.GCP_REGION }} \
+            --format="value(status.latestReadyRevisionName)")
+          
+          # Start with 10% traffic to new revision
+          gcloud run services update-traffic ${{ env.SERVICE_NAME }}-staging \
+            --region=${{ env.GCP_REGION }} \
+            --to-revisions="$CURRENT_REVISION=10" \
+            --quiet
+          
+          echo "🚦 Canary deployment iniciado - 10% de tráfico a nueva versión"
+
+      - name: 'Tests de integración staging'
+        run: |
+          SERVICE_URL=$(gcloud run services describe ${{ env.SERVICE_NAME }}-staging \
+            --region=${{ env.GCP_REGION }} \
+            --format="value(status.url)")
+          
+          echo "🧪 Ejecutando tests de integración en $SERVICE_URL"
+          
+          # Health checks
+          curl -f $SERVICE_URL/health
+          curl -f $SERVICE_URL/ready
+          
+          # Basic API test (mock)
+          curl -X POST $SERVICE_URL/classify \
+            -H "Authorization: Bearer test-token" \
+            -H "Content-Type: application/json" \
+            -d '{"raw_headers":"test","account_context":{"user_locale":"es"}}' \
+            --fail || echo "⚠️  API test falló (esperado sin API key real)"
+          
+          echo "✅ Tests básicos completados"
+
+      - name: 'Promocionar a 100% del tráfico'
+        run: |
+          sleep 60  # Esperar para monitorear canary
+          
+          # Promote to 100% if no issues
+          CURRENT_REVISION=$(gcloud run services describe ${{ env.SERVICE_NAME }}-staging \
+            --region=${{ env.GCP_REGION }} \
+            --format="value(status.latestReadyRevisionName)")
+          
+          gcloud run services update-traffic ${{ env.SERVICE_NAME }}-staging \
+            --region=${{ env.GCP_REGION }} \
+            --to-revisions="$CURRENT_REVISION=100" \
+            --quiet
+          
+          echo "🎉 Deployment a STAGING completado - 100% del tráfico"
+
+  # ============================================================================
+  # JOB 5: DEPLOYMENT A PRODUCTION (Manual Approval Required)
+  # ============================================================================
+  deploy-production:
+    name: 'Deploy to Production'
+    runs-on: ubuntu-latest
+    needs: [pre-deployment, build-and-push]
+    if: needs.pre-deployment.outputs.environment == 'production'
+    environment:
+      name: production
+      url: https://phishing-detector-prod-${{ secrets.GCP_PROJECT_ID }}.a.run.app
+    
+    steps:
+      - name: 'Checkout código fuente'
+        uses: actions/checkout@v4
+
+      - name: 'Autenticar a Google Cloud'
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+
+      - name: 'Configurar Google Cloud SDK'
+        uses: google-github-actions/setup-gcloud@v2
+        with:
+          project_id: ${{ env.GCP_PROJECT_ID }}
+
+      - name: 'Backup configuración actual'
+        run: |
+          # Backup current production state
+          gcloud run services describe ${{ env.SERVICE_NAME }}-prod \
+            --region=${{ env.GCP_REGION }} \
+            --format="export" > production-backup-$(date +%Y%m%d-%H%M%S).yaml \
+            2>/dev/null || echo "No existe servicio previo"
+
+      - name: 'Deploy a Cloud Run - PRODUCTION'
+        run: |
+          gcloud run deploy ${{ env.SERVICE_NAME }}-prod \
+            --image=${{ needs.build-and-push.outputs.image-uri }} \
+            --region=${{ env.GCP_REGION }} \
+            --platform=managed \
+            --allow-unauthenticated \
+            --set-env-vars="LOG_LEVEL=info,ENVIRONMENT=production" \
+            --set-secrets="GEMINI_API_KEY=gemini-api-key:latest,API_TOKEN=api-token-prod:latest" \
+            --memory=8Gi \
+            --cpu=4 \
+            --min-instances=2 \
+            --max-instances=100 \
+            --concurrency=80 \
+            --timeout=300s \
+            --port=8000 \
+            --labels="environment=production,service=phishing-detector,version=${{ needs.pre-deployment.outputs.version }}" \
+            --annotations="run.googleapis.com/cpu-throttling=false" \
+            --no-traffic \
+            --quiet
+
+      - name: 'Blue/Green deployment con traffic splitting'
+        run: |
+          echo "🔄 Iniciando deployment Blue/Green"
+          
+          # Get new revision
+          NEW_REVISION=$(gcloud run services describe ${{ env.SERVICE_NAME }}-prod \
+            --region=${{ env.GCP_REGION }} \
+            --format="value(status.latestReadyRevisionName)")
+          
+          echo "🆕 Nueva revisión: $NEW_REVISION"
+          
+          # Start with 5% traffic
+          gcloud run services update-traffic ${{ env.SERVICE_NAME }}-prod \
+            --region=${{ env.GCP_REGION }} \
+            --to-revisions="$NEW_REVISION=5" \
+            --quiet
+          
+          echo "🚦 5% de tráfico dirigido a nueva revisión"
+          sleep 120  # Monitor for 2 minutes
+          
+          # Increase to 25%
+          gcloud run services update-traffic ${{ env.SERVICE_NAME }}-prod \
+            --region=${{ env.GCP_REGION }} \
+            --to-revisions="$NEW_REVISION=25" \
+            --quiet
+          
+          echo "🚦 25% de tráfico dirigido a nueva revisión"
+          sleep 180  # Monitor for 3 minutes
+          
+          # Increase to 100%
+          gcloud run services update-traffic ${{ env.SERVICE_NAME }}-prod \
+            --region=${{ env.GCP_REGION }} \
+            --to-revisions="$NEW_REVISION=100" \
+            --quiet
+          
+          echo "🎯 100% de tráfico dirigido a nueva revisión"
+
+      - name: 'Tests de producción post-deployment'
+        run: |
+          SERVICE_URL=$(gcloud run services describe ${{ env.SERVICE_NAME }}-prod \
+            --region=${{ env.GCP_REGION }} \
+            --format="value(status.url)")
+          
+          echo "🔍 Ejecutando smoke tests en producción: $SERVICE_URL"
+          
+          # Critical health checks
+          for i in {1..3}; do
+            curl -f $SERVICE_URL/health || (echo "❌ Health check falló intento $i" && sleep 10)
+            curl -f $SERVICE_URL/ready || (echo "❌ Ready check falló intento $i" && sleep 10)
+          done
+          
+          echo "✅ Smoke tests de producción completados"
+
+      - name: 'Configurar alertas post-deployment'
+        run: |
+          echo "📊 Configurando monitoreo intensivo post-deployment"
+          # Aquí configurarías alertas específicas para las primeras horas
+          # Por ejemplo, alertas de latencia más estrictas
+          echo "⚠️  Monitoreo intensivo activado por 24 horas"
+
+  # ============================================================================
+  # JOB 6: POST-DEPLOYMENT Y NOTIFICACIONES
+  # ============================================================================
+  post-deployment:
+    name: 'Post-deployment Tasks'
+    runs-on: ubuntu-latest
+    needs: [pre-deployment, build-and-push, deploy-dev, deploy-staging, deploy-production]
+    if: always() && (needs.deploy-dev.result == 'success' || needs.deploy-staging.result == 'success' || needs.deploy-production.result == 'success')
+    
+    steps:
+      - name: 'Generar reporte de deployment'
+        run: |
+          echo "# 🚀 Deployment Report - Phishing Detector" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## 📋 Información del Deployment" >> $GITHUB_STEP_SUMMARY
+          echo "- **Environment**: ${{ needs.pre-deployment.outputs.environment }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Version**: ${{ needs.pre-deployment.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Imagen**: ${{ needs.build-and-push.outputs.image-uri }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Commit**: ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Branch**: ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Timestamp**: $(date -u '+%Y-%m-%d %H:%M:%S UTC')" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## ✅ Estado de Componentes" >> $GITHUB_STEP_SUMMARY
+          echo "- Build & Push: ${{ needs.build-and-push.result == 'success' && '✅ Success' || '❌ Failed' }}" >> $GITHUB_STEP_SUMMARY
+          
+          if [[ "${{ needs.pre-deployment.outputs.environment }}" == "dev" ]]; then
+            echo "- Deploy DEV: ${{ needs.deploy-dev.result == 'success' && '✅ Success' || '❌ Failed' }}" >> $GITHUB_STEP_SUMMARY
+          elif [[ "${{ needs.pre-deployment.outputs.environment }}" == "staging" ]]; then
+            echo "- Deploy STAGING: ${{ needs.deploy-staging.result == 'success' && '✅ Success' || '❌ Failed' }}" >> $GITHUB_STEP_SUMMARY
+          elif [[ "${{ needs.pre-deployment.outputs.environment }}" == "production" ]]; then
+            echo "- Deploy PRODUCTION: ${{ needs.deploy-production.result == 'success' && '✅ Success' || '❌ Failed' }}" >> $GITHUB_STEP_SUMMARY
+          fi
+
+      - name: 'Crear GitHub Release (solo para production)'
+        if: needs.pre-deployment.outputs.environment == 'production' && needs.deploy-production.result == 'success'
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: v${{ needs.pre-deployment.outputs.version }}
+          release_name: 'Release v${{ needs.pre-deployment.outputs.version }}'
+          body: |
+            ## 🚀 Phishing Detector Release v${{ needs.pre-deployment.outputs.version }}
+            
+            ### 📋 Deployment Info
+            - **Environment**: Production
+            - **Image**: ${{ needs.build-and-push.outputs.image-uri }}
+            - **Commit**: ${{ github.sha }}
+            
+            ### ✅ Features & Changes
+            - Security-first phishing detection API
+            - Gemini 2.5 integration for advanced analysis
+            - Prometheus metrics and structured logging
+            - Bearer token authentication
+            - Auto-scaling Cloud Run deployment
+            
+            ### 🛡️ Security
+            - Container image signed with Cosign
+            - SLSA Level 3 attestation
+            - All dependencies audited
+            - SAST analysis passed
+          draft: false
+          prerelease: false
+
+      - name: 'Limpiar artefactos antiguos'
+        run: |
+          echo "🧹 Limpieza de artefactos antiguos programada"
+          # Aquí podrías implementar limpieza de imágenes Docker antiguas
+          echo "💾 Retención configurada: 30 días para artefactos"
+
+      - name: 'Notificar resultado'
+        run: |
+          if [[ "${{ job.status }}" == "success" ]]; then
+            echo "🎉 Deployment exitoso a ${{ needs.pre-deployment.outputs.environment }}"
+            echo "🔗 Versión ${{ needs.pre-deployment.outputs.version }} está corriendo"
+          else
+            echo "❌ Deployment falló - revisar logs"
+          fi

@@ -1,0 +1,36 @@
+{
+  "timeZone": "America/Mexico_City",
+  "dependencies": {
+    "enabledAdvancedServices": []
+  },
+  "oauthScopes": [
+    "https://www.googleapis.com/auth/gmail.addons.current.message.readonly",
+    "https://www.googleapis.com/auth/script.external_request"
+  ],
+  "addOns": {
+    "common": {
+      "name": "Detector de Phishing",
+      "logoUrl": "https://cdn-icons-png.flaticon.com/512/1161/1161388.png",
+      "layoutProperties": {
+        "primaryColor": "#4285f4",
+        "secondaryColor": "#34a853"
+      },
+      "homepageTrigger": {
+        "runFunction": "onGmailMessageOpen"
+      }
+    },
+    "gmail": {
+      "contextualTriggers": [{
+        "unconditional": {},
+        "onTriggerFunction": "onGmailMessageOpen"
+      }],
+      "composeTrigger": {
+        "selectActions": [{
+          "text": "Verificar seguridad",
+          "runFunction": "onGmailMessageOpen"
+        }],
+        "draftAccess": "NONE"
+      }
+    }
+  }
+}

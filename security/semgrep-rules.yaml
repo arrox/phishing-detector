@@ -1,0 +1,353 @@
+# ============================================================================
+# SEMGREP CUSTOM RULES
+# Reglas personalizadas para análisis SAST específico de Phishing Detector
+# Detecta vulnerabilidades y patrones específicos del dominio
+# ============================================================================
+
+rules:
+  # ============================================================================
+  # REGLAS DE SEGURIDAD PARA DETECCIÓN DE PHISHING
+  # ============================================================================
+
+  - id: hardcoded-gemini-api-key
+    message: "Hardcoded Gemini API key detected. Use environment variables or secret management."
+    severity: ERROR
+    languages: [python]
+    pattern-either:
+      - pattern: $GEMINI_API_KEY = "..."
+      - pattern: gemini_api_key = "..."
+      - pattern: GEMINI_API_KEY = "..."
+      - pattern-regex: '(gemini[_-]?api[_-]?key)\s*=\s*["\'][A-Za-z0-9_-]{30,}["\']'
+    metadata:
+      category: security
+      cwe: "CWE-798: Hardcoded Credentials"
+      owasp: "A07:2021 - Identification and Authentication Failures"
+      confidence: HIGH
+      impact: HIGH
+
+  - id: hardcoded-bearer-token
+    message: "Hardcoded Bearer token detected. Use environment variables or secret management."
+    severity: ERROR
+    languages: [python]
+    patterns:
+      - pattern-either:
+        - pattern: $TOKEN = "..."
+        - pattern: api_token = "..."
+        - pattern: bearer_token = "..."
+        - pattern: API_TOKEN = "..."
+      - pattern-not: $TOKEN = ""
+      - pattern-not: $TOKEN = None
+    metadata:
+      category: security
+      cwe: "CWE-798: Hardcoded Credentials"
+      confidence: HIGH
+
+  - id: unsafe-url-validation
+    message: "Unsafe URL validation detected. Ensure proper sanitization to prevent SSRF."
+    severity: WARNING
+    languages: [python]
+    pattern-either:
+      - pattern: requests.get($URL, ...)
+      - pattern: requests.post($URL, ...)
+      - pattern: urllib.request.urlopen($URL, ...)
+      - pattern: httpx.get($URL, ...)
+    pattern-not-inside:
+      - pattern-either:
+        - pattern: |
+            if $CONDITION:
+              ...
+              requests.get($URL, ...)
+        - pattern: |
+            $URL = validate_url($URL)
+            ...
+            requests.get($URL, ...)
+    metadata:
+      category: security
+      cwe: "CWE-918: Server-Side Request Forgery (SSRF)"
+      owasp: "A10:2021 - Server-Side Request Forgery"
+
+  - id: email-header-injection
+    message: "Potential email header injection. Sanitize email headers before processing."
+    severity: ERROR
+    languages: [python]
+    patterns:
+      - pattern-either:
+        - pattern: email.message_from_string($RAW_EMAIL)
+        - pattern: email.parser.Parser().parsestr($RAW_EMAIL)
+      - pattern-not-inside: |
+          $SANITIZED = sanitize_headers($RAW_EMAIL)
+          ...
+
+  - id: html-content-without-sanitization
+    message: "HTML content processed without sanitization. Risk of XSS or code injection."
+    severity: WARNING
+    languages: [python]
+    pattern-either:
+      - pattern: BeautifulSoup($HTML, "html.parser")
+      - pattern: html2text.html2text($HTML)
+      - pattern: re.findall(..., $HTML)
+    pattern-not-inside:
+      - pattern: |
+          $CLEAN_HTML = sanitize_html($HTML)
+          ...
+
+  - id: unsafe-file-operations
+    message: "Unsafe file operation detected. Validate file paths to prevent path traversal."
+    severity: ERROR
+    languages: [python]
+    pattern-either:
+      - pattern: open($PATH, ...)
+      - pattern: with open($PATH, ...) as $F: ...
+    pattern-where:
+      - pattern: $PATH
+      - pattern-not: $PATH.startswith("/tmp/")
+      - pattern-not: $PATH.startswith("./temp/")
+    pattern-not-inside:
+      - pattern: |
+          $SAFE_PATH = validate_path($PATH)
+          ...
+
+  # ============================================================================
+  # REGLAS DE LOGGING Y DEBUGGING
+  # ============================================================================
+
+  - id: sensitive-data-in-logs
+    message: "Sensitive data may be logged. Avoid logging PII, tokens, or credentials."
+    severity: ERROR
+    languages: [python]
+    pattern-either:
+      - pattern: logger.$METHOD(..., password=..., ...)
+      - pattern: logger.$METHOD(..., token=..., ...)
+      - pattern: logger.$METHOD(..., api_key=..., ...)
+      - pattern: logger.$METHOD(..., secret=..., ...)
+      - pattern: logger.$METHOD(..., email=..., ...)
+      - pattern: print(..., password=..., ...)
+      - pattern: print(..., token=..., ...)
+    metadata:
+      category: security
+      cwe: "CWE-532: Information Exposure Through Log Files"
+
+  - id: debug-code-in-production
+    message: "Debug code detected. Remove before production deployment."
+    severity: INFO
+    languages: [python]
+    pattern-either:
+      - pattern: print("DEBUG:", ...)
+      - pattern: print("TODO:", ...)
+      - pattern: print("FIXME:", ...)
+      - pattern: breakpoint()
+      - pattern: pdb.set_trace()
+      - pattern: import pdb
+    metadata:
+      category: maintainability
+      
+  # ============================================================================
+  # REGLAS DE CONFIGURACIÓN Y ENVIRONMENT
+  # ============================================================================
+
+  - id: missing-environment-validation
+    message: "Environment variable used without validation. Check if variable exists and has valid value."
+    severity: WARNING
+    languages: [python]
+    patterns:
+      - pattern: os.getenv($VAR)
+      - pattern-not-inside: |
+          $VALUE = os.getenv($VAR)
+          if not $VALUE:
+            ...
+      - pattern-not-inside: |
+          $VALUE = os.getenv($VAR, $DEFAULT)
+          ...
+
+  - id: unsafe-cors-configuration
+    message: "Unsafe CORS configuration. Avoid allowing all origins (*) in production."
+    severity: WARNING
+    languages: [python]
+    patterns:
+      - pattern: allow_origins=["*"]
+      - pattern: allow_origins="*"
+      - pattern-inside: |
+          app.add_middleware(CORSMiddleware, ...)
+
+  # ============================================================================
+  # REGLAS ESPECÍFICAS PARA FASTAPI
+  # ============================================================================
+
+  - id: missing-authentication-dependency
+    message: "API endpoint without authentication. Add authentication dependency."
+    severity: ERROR
+    languages: [python]
+    patterns:
+      - pattern: |
+          @app.$METHOD($PATH)
+          def $FUNC(...):
+            ...
+      - pattern-not: |
+          @app.$METHOD($PATH)
+          def $FUNC(..., current_user = Depends(...), ...):
+            ...
+      - pattern-not: |
+          @app.$METHOD($PATH)
+          def $FUNC(..., token = Depends(...), ...):
+            ...
+      - metavariable-pattern:
+          metavariable: $PATH
+          pattern-not-either:
+            - pattern: "/health"
+            - pattern: "/ready"
+            - pattern: "/metrics"
+            - pattern: "/"
+
+  - id: missing-input-validation
+    message: "API endpoint without input validation. Use Pydantic models for request validation."
+    severity: WARNING
+    languages: [python]
+    patterns:
+      - pattern: |
+          @app.post($PATH)
+          def $FUNC($PARAM, ...):
+            ...
+      - pattern-not: |
+          @app.post($PATH)
+          def $FUNC($PARAM: $MODEL, ...):
+            ...
+      - metavariable-pattern:
+          metavariable: $PARAM
+          pattern-not: current_user
+
+  # ============================================================================
+  # REGLAS DE MANEJO DE ERRORES
+  # ============================================================================
+
+  - id: generic-exception-handling
+    message: "Generic exception handling detected. Use specific exception types."
+    severity: INFO
+    languages: [python]
+    patterns:
+      - pattern: |
+          try:
+            ...
+          except Exception as $E:
+            ...
+      - pattern-not: |
+          try:
+            ...
+          except Exception as $E:
+            logger.error(...)
+            ...
+      - pattern-not: |
+          try:
+            ...
+          except Exception as $E:
+            ...
+            raise
+
+  - id: exception-without-logging
+    message: "Exception handled without logging. Log exceptions for debugging."
+    severity: WARNING
+    languages: [python]
+    patterns:
+      - pattern: |
+          try:
+            ...
+          except $EXCEPTION as $E:
+            pass
+      - pattern: |
+          try:
+            ...
+          except $EXCEPTION as $E:
+            return ...
+
+  # ============================================================================
+  # REGLAS DE PERFORMANCE Y RESOURCES
+  # ============================================================================
+
+  - id: blocking-io-in-async
+    message: "Blocking I/O operation in async function. Use async alternatives."
+    severity: WARNING
+    languages: [python]
+    patterns:
+      - pattern-inside: |
+          async def $FUNC(...):
+            ...
+      - pattern-either:
+        - pattern: requests.get(...)
+        - pattern: requests.post(...)
+        - pattern: time.sleep(...)
+        - pattern: open(...).read()
+
+  - id: missing-timeout-in-requests
+    message: "HTTP request without timeout. Add timeout to prevent hanging."
+    severity: WARNING
+    languages: [python]
+    pattern-either:
+      - pattern: requests.get($URL, ...)
+      - pattern: requests.post($URL, ...)
+      - pattern: httpx.get($URL, ...)
+    pattern-not:
+      - pattern: requests.get($URL, ..., timeout=..., ...)
+      - pattern: requests.post($URL, ..., timeout=..., ...)
+      - pattern: httpx.get($URL, ..., timeout=..., ...)
+
+  # ============================================================================
+  # REGLAS ESPECÍFICAS PARA CONTENIDO DE EMAIL
+  # ============================================================================
+
+  - id: unsafe-regex-patterns
+    message: "Potentially unsafe regex pattern. Verify against ReDoS attacks."
+    severity: WARNING
+    languages: [python]
+    pattern-either:
+      - pattern: re.compile(".*\\*.*\\*.*")
+      - pattern: re.compile(".*\\+.*\\+.*") 
+      - pattern: re.findall(".*\\*.*\\*.*", ...)
+    metadata:
+      category: security
+      cwe: "CWE-1333: Inefficient Regular Expression Complexity"
+
+  - id: email-address-exposure
+    message: "Email address may be exposed in logs or responses. Consider redaction."
+    severity: INFO
+    languages: [python]
+    patterns:
+      - pattern-either:
+        - pattern: logger.$METHOD(..., $EMAIL, ...)
+        - pattern: print(..., $EMAIL, ...)
+      - metavariable-regex:
+          metavariable: $EMAIL
+          regex: '.*@.*\\..*'
+
+  # ============================================================================
+  # REGLAS DE CONFIGURACIÓN DE DEPLOYMENT
+  # ============================================================================
+
+  - id: development-configuration-in-production
+    message: "Development configuration detected. Ensure proper production settings."
+    severity: WARNING
+    languages: [python]
+    pattern-either:
+      - pattern: DEBUG = True
+      - pattern: TESTING = True
+      - pattern: LOG_LEVEL = "debug"
+      - pattern: ENVIRONMENT = "development"
+    pattern-inside: |
+      if os.getenv("ENVIRONMENT") == "production":
+        ...
+
+  # ============================================================================
+  # REGLAS DE DATOS SENSIBLES
+  # ============================================================================
+
+  - id: pii-data-processing
+    message: "Potential PII data processing detected. Ensure proper anonymization/redaction."
+    severity: INFO
+    languages: [python]
+    pattern-either:
+      - pattern-regex: '.*email.*address.*'
+      - pattern-regex: '.*phone.*number.*'
+      - pattern-regex: '.*social.*security.*'
+      - pattern-regex: '.*credit.*card.*'
+    pattern-inside: |
+      def $FUNC(...):
+        ...
+        return $RESULT

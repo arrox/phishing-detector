@@ -1,0 +1,405 @@
+# ============================================================================
+# PRE-COMMIT CONFIGURATION
+# Hooks automatizados que se ejecutan antes de cada commit
+# Garantiza calidad, seguridad y consistencia del código
+# ============================================================================
+
+# Configuración global
+default_install_hook_types: [pre-commit, commit-msg, pre-push]
+default_language_version:
+  python: python3.11
+
+# Configuración de repositorios y hooks
+repos:
+  # ============================================================================
+  # HOOKS BÁSICOS DE PRE-COMMIT
+  # ============================================================================
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.4.0
+    hooks:
+      # Verificaciones básicas de archivos
+      - id: trailing-whitespace
+        name: "🧹 Eliminar espacios al final"
+        description: "Remove trailing whitespace"
+        exclude: "^(.*\\.md|.*\\.txt)$"
+        
+      - id: end-of-file-fixer
+        name: "📝 Fijar final de archivo"
+        description: "Ensure files end with newline"
+        exclude: "^(.*\\.json|.*\\.txt)$"
+        
+      - id: check-yaml
+        name: "📋 Validar YAML"
+        description: "Check YAML syntax"
+        args: [--allow-multiple-documents]
+        
+      - id: check-json
+        name: "🔍 Validar JSON"
+        description: "Check JSON syntax"
+        
+      - id: check-toml
+        name: "⚙️ Validar TOML"
+        description: "Check TOML syntax"
+        
+      - id: check-xml
+        name: "📄 Validar XML"
+        description: "Check XML syntax"
+
+      # Verificaciones de contenido
+      - id: check-case-conflict
+        name: "📂 Verificar conflictos de nombres"
+        description: "Check for case conflicts in filenames"
+        
+      - id: check-merge-conflict
+        name: "🔀 Verificar conflictos de merge"
+        description: "Check for merge conflict markers"
+        
+      - id: check-executables-have-shebangs
+        name: "🔧 Verificar shebangs"
+        description: "Check that executables have shebangs"
+        
+      - id: check-shebang-scripts-are-executable
+        name: "⚡ Verificar permisos de scripts"
+        description: "Check that scripts with shebangs are executable"
+
+      # Verificaciones de seguridad básicas
+      - id: detect-private-key
+        name: "🔐 Detectar claves privadas"
+        description: "Detect private keys"
+        
+      - id: check-added-large-files
+        name: "📦 Verificar archivos grandes"
+        description: "Check for large files"
+        args: [--maxkb=1000]
+        
+      - id: forbid-new-submodules
+        name: "🚫 Prohibir nuevos submódulos"
+        description: "Forbid new submodules"
+
+  # ============================================================================
+  # FORMATEO DE CÓDIGO PYTHON
+  # ============================================================================
+  - repo: https://github.com/psf/black
+    rev: 23.9.1
+    hooks:
+      - id: black
+        name: "🎨 Formatear código con Black"
+        description: "Format Python code with Black"
+        language_version: python3
+        args: [--line-length=88]
+        types: [python]
+
+  - repo: https://github.com/pycqa/isort
+    rev: 5.12.0
+    hooks:
+      - id: isort
+        name: "📚 Ordenar imports"
+        description: "Sort Python imports with isort"
+        language_version: python3
+        args: [--profile=black]
+        types: [python]
+
+  # ============================================================================
+  # LINTING Y ANÁLISIS ESTÁTICO
+  # ============================================================================
+  - repo: https://github.com/pycqa/flake8
+    rev: 6.1.0
+    hooks:
+      - id: flake8
+        name: "🔍 Linting con flake8"
+        description: "Lint Python code with flake8"
+        language_version: python3
+        args:
+          - --max-line-length=88
+          - --extend-ignore=E203,W503,E501
+          - --per-file-ignores=__init__.py:F401
+        types: [python]
+        additional_dependencies:
+          - flake8-docstrings
+          - flake8-import-order
+          - flake8-bugbear
+
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.6.1
+    hooks:
+      - id: mypy
+        name: "🎯 Type checking con mypy"
+        description: "Type check Python code with mypy"
+        language_version: python3
+        args: [--ignore-missing-imports, --strict-optional]
+        types: [python]
+        additional_dependencies:
+          - types-requests
+          - types-python-jose
+
+  # ============================================================================
+  # ANÁLISIS DE SEGURIDAD
+  # ============================================================================
+  - repo: https://github.com/PyCQA/bandit
+    rev: 1.7.5
+    hooks:
+      - id: bandit
+        name: "🛡️ Análisis de seguridad con Bandit"
+        description: "Security analysis with Bandit"
+        language_version: python3
+        args:
+          - -c
+          - security/bandit.yaml
+          - -r
+          - src/
+        types: [python]
+        pass_filenames: false
+
+  - repo: https://github.com/Yelp/detect-secrets
+    rev: v1.4.0
+    hooks:
+      - id: detect-secrets
+        name: "🔐 Detectar secretos"
+        description: "Detect secrets in code"
+        args:
+          - --baseline
+          - .secrets.baseline
+          - --exclude-files
+          - ".*\\.lock$"
+          - --exclude-files
+          - ".*\\.min\\.js$"
+        exclude: "^(tests/.*|.*\\.example$)"
+
+  # ============================================================================
+  # VALIDACIÓN DE ARCHIVOS DE CONFIGURACIÓN
+  # ============================================================================
+  - repo: https://github.com/adrienverge/yamllint
+    rev: v1.32.0
+    hooks:
+      - id: yamllint
+        name: "📋 Validar YAML con yamllint"
+        description: "Lint YAML files"
+        args:
+          - -c
+          - .yamllint.yaml
+        types: [yaml]
+
+  - repo: https://github.com/python-jsonschema/check-jsonschema
+    rev: 0.27.0
+    hooks:
+      - id: check-github-workflows
+        name: "🔄 Validar GitHub Actions"
+        description: "Validate GitHub Actions workflows"
+        files: "^\\.github/workflows/.*\\.ya?ml$"
+
+  # ============================================================================
+  # DOCKER Y CONTENEDORES
+  # ============================================================================
+  - repo: https://github.com/hadolint/hadolint
+    rev: v2.12.0
+    hooks:
+      - id: hadolint-docker
+        name: "🐳 Linting Dockerfile"
+        description: "Lint Dockerfiles with hadolint"
+        args: [--ignore, DL3008, --ignore, DL3009]
+
+  # ============================================================================
+  # TERRAFORM
+  # ============================================================================
+  - repo: https://github.com/antonbabenko/pre-commit-terraform
+    rev: v1.83.5
+    hooks:
+      - id: terraform_fmt
+        name: "🏗️ Formatear Terraform"
+        description: "Format Terraform files"
+        
+      - id: terraform_validate
+        name: "✅ Validar Terraform"
+        description: "Validate Terraform configuration"
+        
+      - id: terraform_tflint
+        name: "🔍 Linting Terraform"
+        description: "Lint Terraform with tflint"
+        
+      - id: terraform_checkov
+        name: "🛡️ Seguridad Terraform"
+        description: "Security analysis with Checkov"
+        args:
+          - --framework=terraform
+          - --skip-check=CKV2_GCP_18  # Ejemplo: skip específico si es necesario
+
+  # ============================================================================
+  # DOCUMENTACIÓN
+  # ============================================================================
+  - repo: https://github.com/executablebooks/mdformat
+    rev: 0.7.17
+    hooks:
+      - id: mdformat
+        name: "📝 Formatear Markdown"
+        description: "Format Markdown files"
+        additional_dependencies:
+          - mdformat-gfm
+          - mdformat-black
+        args: [--wrap=80]
+        files: ".*\\.md$"
+
+  # ============================================================================
+  # HOOKS ESPECÍFICOS PARA PHISHING DETECTOR
+  # ============================================================================
+  - repo: local
+    hooks:
+      # Verificar que no se commiteen API keys reales
+      - id: check-api-keys
+        name: "🔑 Verificar API keys"
+        description: "Check for real API keys in code"
+        entry: bash
+        language: system
+        args:
+          - -c
+          - |
+            if grep -r "AIza[0-9A-Za-z_-]\{35\}" --include="*.py" --include="*.json" --include="*.yaml" src/ 2>/dev/null; then
+              echo "❌ Real Google API key detected!"
+              exit 1
+            fi
+            if grep -r "ya29\." --include="*.py" --include="*.json" --include="*.yaml" src/ 2>/dev/null; then
+              echo "❌ Real OAuth token detected!"
+              exit 1
+            fi
+        pass_filenames: false
+
+      # Verificar que los tests pasen antes del commit
+      - id: pytest-check
+        name: "🧪 Ejecutar tests"
+        description: "Run pytest before commit"
+        entry: bash
+        language: system
+        args:
+          - -c
+          - |
+            if command -v pytest &> /dev/null; then
+              pytest tests/ -x -q --tb=no
+            else
+              echo "⚠️ pytest no instalado, saltando tests"
+            fi
+        pass_filenames: false
+        stages: [pre-push]
+
+      # Verificar configuración de seguridad
+      - id: security-config-check
+        name: "🔒 Verificar configuración de seguridad"
+        description: "Check security configuration"
+        entry: bash
+        language: system
+        args:
+          - -c
+          - |
+            # Verificar que existen archivos de configuración de seguridad
+            if [ ! -f .gitleaks.toml ]; then
+              echo "❌ .gitleaks.toml missing"
+              exit 1
+            fi
+            if [ ! -f security/bandit.yaml ]; then
+              echo "❌ security/bandit.yaml missing"
+              exit 1
+            fi
+            echo "✅ Security configuration verified"
+        pass_filenames: false
+
+      # Verificar estructura de proyecto
+      - id: project-structure
+        name: "📁 Verificar estructura de proyecto"
+        description: "Check project structure"
+        entry: bash
+        language: system
+        args:
+          - -c
+          - |
+            # Verificar estructura básica
+            required_dirs=("src" "tests" "terraform" "security" "monitoring")
+            for dir in "${required_dirs[@]}"; do
+              if [ ! -d "$dir" ]; then
+                echo "❌ Required directory missing: $dir"
+                exit 1
+              fi
+            done
+            
+            required_files=("pyproject.toml" "Dockerfile" "Makefile")
+            for file in "${required_files[@]}"; do
+              if [ ! -f "$file" ]; then
+                echo "❌ Required file missing: $file"
+                exit 1
+              fi
+            done
+            
+            echo "✅ Project structure verified"
+        pass_filenames: false
+
+# ============================================================================
+# CONFIGURACIÓN DE COMMIT MESSAGE
+# ============================================================================
+  - repo: https://github.com/compilerla/conventional-pre-commit
+    rev: v3.0.0
+    hooks:
+      - id: conventional-pre-commit
+        name: "📝 Verificar formato de commit"
+        description: "Check commit message format"
+        stages: [commit-msg]
+        args:
+          - feat
+          - fix
+          - docs
+          - style
+          - refactor
+          - perf
+          - test
+          - build
+          - ci
+          - chore
+          - revert
+          - security
+
+# ============================================================================
+# CONFIGURACIÓN DE CI ESPECÍFICA
+# ============================================================================
+ci:
+  # Configuración para pre-commit.ci
+  autofix_commit_msg: |
+    🤖 [pre-commit.ci] auto fixes from pre-commit hooks
+    
+    for more information, see https://pre-commit.ci
+  autofix_prs: true
+  autoupdate_branch: develop
+  autoupdate_commit_msg: |
+    🔄 [pre-commit.ci] pre-commit autoupdate
+  autoupdate_schedule: monthly
+  skip:
+    # Hooks que requieren secretos o configuración específica
+    - pytest-check
+    - terraform_checkov
+  submodules: false
+
+# ============================================================================
+# CONFIGURACIÓN ESPECÍFICA DE ARCHIVOS
+# ============================================================================
+
+# Excluir archivos específicos de ciertos hooks
+exclude: |
+  (?x)^(
+    # Archivos generados
+    .*\.min\.js|
+    .*\.min\.css|
+    
+    # Archivos de dependencias
+    package-lock\.json|
+    yarn\.lock|
+    
+    # Archivos temporales
+    .*\.tmp|
+    .*\.temp|
+    
+    # Archivos de configuración de IDEs
+    \.vscode/.*|
+    \.idea/.*|
+    
+    # Archivos de terraform state
+    .*\.tfstate|
+    .*\.tfstate\.backup|
+    
+    # Archivos de logs
+    .*\.log
+  )$

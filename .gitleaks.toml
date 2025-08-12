@@ -1,0 +1,276 @@
+# ============================================================================
+# GITLEAKS CONFIGURATION
+# Configuración para detección de secretos en código fuente
+# Previene commit de credenciales, tokens, y datos sensibles
+# ============================================================================
+
+title = "Gitleaks Configuration - Phishing Detector"
+
+# ============================================================================
+# CONFIGURACIÓN GENERAL
+# ============================================================================
+
+# Extender configuración base de Gitleaks
+[extend]
+useDefault = true
+
+# ============================================================================
+# REGLAS PERSONALIZADAS
+# ============================================================================
+
+[[rules]]
+id = "gemini-api-key"
+description = "Google Gemini API Key"
+regex = '''(?i)(gemini[_-]?api[_-]?key|google[_-]?ai[_-]?key)\s*[:=]\s*["']?([A-Za-z0-9_-]{39})["']?'''
+secretGroup = 2
+keywords = [
+    "gemini",
+    "google-ai",
+    "generative-ai"
+]
+
+[[rules]]
+id = "google-cloud-service-account"
+description = "Google Cloud Service Account JSON"
+regex = '''(?s)"type":\s*"service_account".*"private_key":\s*"-----BEGIN PRIVATE KEY-----'''
+keywords = [
+    "service_account",
+    "private_key",
+    "google"
+]
+
+[[rules]]
+id = "google-oauth-token"
+description = "Google OAuth Access Token"
+regex = '''ya29\.[A-Za-z0-9_-]+'''
+keywords = [
+    "ya29",
+    "oauth",
+    "access_token"
+]
+
+[[rules]]
+id = "google-api-key"
+description = "Google API Key"
+regex = '''AIza[0-9A-Za-z_-]{35}'''
+keywords = [
+    "AIza",
+    "google_api"
+]
+
+[[rules]]
+id = "bearer-token"
+description = "Bearer Token"
+regex = '''(?i)bearer\s+[A-Za-z0-9_-]+'''
+keywords = [
+    "bearer",
+    "authorization"
+]
+
+[[rules]]
+id = "database-url"
+description = "Database URL with credentials"
+regex = '''(?i)(postgres|mysql|mongodb)://[^:]+:[^@]+@[^/]+'''
+keywords = [
+    "postgres://",
+    "mysql://",
+    "mongodb://"
+]
+
+[[rules]]
+id = "docker-config"
+description = "Docker configuration with auth"
+regex = '''(?s)"auths":\s*{.*"auth":\s*"[A-Za-z0-9+/=]+"'''
+keywords = [
+    "auths",
+    "docker",
+    "config.json"
+]
+
+# ============================================================================
+# PATHS Y ARCHIVOS A IGNORAR
+# ============================================================================
+
+[allowlist]
+# Archivos de configuración donde los secretos son esperados (templates)
+paths = [
+    '''\.tfvars\.example$''',
+    '''terraform\.tfvars\.example$''',
+    '''config\.example\.''',
+    '''\.env\.example$''',
+    '''\.env\.template$''',
+    '''example\.[yaml|yml|json]$''',
+    '''template\.[yaml|yml|json]$''',
+    '''sample\.[yaml|yml|json]$''',
+    '''test.*\.[yaml|yml|json|py]$''',
+    '''mock.*\.[yaml|yml|json|py]$''',
+    '''/tests?/.*''',
+    '''/test_.*''',
+    '''conftest\.py$''',
+    '''__pycache__/.*''',
+    '''\.git/.*''',
+    '''\.terraform/.*''',
+    '''node_modules/.*''',
+    '''venv/.*''',
+    '''\.venv/.*'''
+]
+
+# Regexes específicos para permitir en cualquier archivo
+regexes = [
+    # Valores de ejemplo/placeholder
+    '''placeholder[_-]?key''',
+    '''your[_-]?api[_-]?key''',
+    '''example[_-]?token''',
+    '''test[_-]?secret''',
+    '''fake[_-]?password''',
+    '''dummy[_-]?key''',
+    '''mock[_-]?token''',
+    '''demo[_-]?secret''',
+    
+    # Tokens/keys claramente de desarrollo/testing
+    '''test_key_12345''',
+    '''test_token_67890''',
+    '''dev_secret_abc''',
+    '''local_api_key''',
+    
+    # Base64 cortos (no credenciales reales)
+    '''[A-Za-z0-9+/=]{1,20}''',
+    
+    # Comentarios con ejemplos
+    '''#.*(?:key|token|secret|password)''',
+    '''/\*.*(?:key|token|secret|password).*\*/''',
+    '''//.*(?:key|token|secret|password)''',
+    
+    # Documentación
+    '''(?i)(example|sample|placeholder|template|demo):.*''',
+    '''(?i)# (example|sample|placeholder|template|demo)''',
+    
+    # Variables de entorno documentadas
+    '''(?i)\$\{?[A-Z_]+\}?''',
+    '''{{[A-Z_]+}}''',
+    '''<[A-Z_]+>''',
+    '''\[YOUR_[A-Z_]+\]'''
+]
+
+# ============================================================================
+# CONFIGURACIÓN DE STOPWORDS
+# ============================================================================
+
+stopwords = [
+    "example",
+    "sample", 
+    "test",
+    "demo",
+    "placeholder",
+    "template",
+    "mock",
+    "fake",
+    "dummy",
+    "local",
+    "dev",
+    "development"
+]
+
+# ============================================================================
+# CONFIGURACIÓN DE COMMITS
+# ============================================================================
+
+# Configurar para analizar todo el historial en primer scan
+[git]
+# Analizar los últimos 100 commits en scans incrementales
+maxCommitDepth = 100
+
+# ============================================================================
+# CONFIGURACIÓN DE OUTPUT
+# ============================================================================
+
+# Formato de reporte por defecto
+[output]
+format = "json"
+path = "gitleaks-report.json"
+
+# ============================================================================
+# CONFIGURACIÓN ESPECÍFICA PARA CI/CD
+# ============================================================================
+
+# Configuración para uso en GitHub Actions
+[ci]
+# Fallar el pipeline si se encuentran secretos
+exitCodeOnFinding = 1
+
+# ============================================================================
+# REGLAS ADICIONALES PARA PHISHING DETECTOR
+# ============================================================================
+
+[[rules]]
+id = "api-token-header"
+description = "API Token in HTTP Header"
+regex = '''(?i)authorization:\s*bearer\s+[A-Za-z0-9_-]{20,}'''
+keywords = [
+    "authorization",
+    "bearer"
+]
+
+[[rules]]
+id = "workspace-addon-key"
+description = "Google Workspace Add-on Key"
+regex = '''(?i)(workspace|addon)[_-]?key\s*[:=]\s*["']?([A-Za-z0-9_-]{32,})["']?'''
+secretGroup = 2
+keywords = [
+    "workspace",
+    "addon"
+]
+
+[[rules]]
+id = "jwt-token"
+description = "JSON Web Token"
+regex = '''eyJ[A-Za-z0-9_-]+\.eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+'''
+keywords = [
+    "eyJ",
+    "jwt",
+    "token"
+]
+
+# ============================================================================
+# ENTROPY DETECTION
+# ============================================================================
+
+# Detectar strings con alta entropía (posibles secretos)
+[entropy]
+# Habilitar detección de entropía
+enabled = true
+
+# Rangos de entropía para diferentes tipos de strings
+[entropy.range]
+min = 3.0
+max = 7.0
+
+# ============================================================================
+# CONFIGURACIÓN POR TIPO DE ARCHIVO
+# ============================================================================
+
+# Configuración específica para archivos Python
+[[rules]]
+id = "python-hardcoded-secret"
+description = "Hardcoded secret in Python code"
+regex = '''(?i)(secret|password|token|key)\s*=\s*["'][A-Za-z0-9_-]{16,}["']'''
+path = '''.*\.py$'''
+keywords = [
+    "secret =",
+    "password =", 
+    "token =",
+    "key ="
+]
+
+# Configuración específica para archivos YAML/JSON
+[[rules]]
+id = "config-file-secret"
+description = "Secret in configuration file"
+regex = '''(?i)(secret|password|token|key)["']?\s*:\s*["']?(?!(\$\{|{{|<|example|sample|test|placeholder))[A-Za-z0-9_-]{16,}["']?'''
+path = '''.*\.(yaml|yml|json)$'''
+keywords = [
+    "secret:",
+    "password:",
+    "token:",
+    "key:"
+]

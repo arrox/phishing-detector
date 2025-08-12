@@ -1,0 +1,117 @@
+{
+  "phishing_examples": [
+    {
+      "name": "PayPal Lookalike Domain",
+      "classification": "phishing",
+      "expected_score": 85,
+      "request": {
+        "raw_headers": "From: PayPal Security <security@payp4l-secure.com>\nTo: user@example.com\nSubject: Urgent: Account Verification Required\nAuthentication-Results: mx.example.com; dmarc=fail (p=reject) header.from=payp4l-secure.com; spf=fail smtp.mailfrom=payp4l-secure.com; dkim=fail header.d=payp4l-secure.com",
+        "raw_html": "<html><body><h1>PayPal Security Alert</h1><p>Your account has been temporarily suspended due to unusual activity.</p><p>Please <a href='http://payp4l-secure.com/verify-account'>verify your account</a> within 24 hours to avoid permanent closure.</p><p>Click here: http://payp4l-secure.com/verify-account</p></body></html>",
+        "text_body": "PayPal Security Alert\n\nYour account has been temporarily suspended due to unusual activity.\n\nPlease verify your account within 24 hours to avoid permanent closure.\n\nClick here: http://payp4l-secure.com/verify-account\n\nPayPal Security Team",
+        "attachments_meta": [],
+        "account_context": {
+          "user_locale": "es-ES",
+          "trusted_senders": ["service@paypal.com"],
+          "owned_domains": ["example.com"]
+        }
+      },
+      "expected_reasons": ["Dominio similar a marca conocida", "DMARC falló", "Solicitud urgente de verificación"]
+    },
+    {
+      "name": "Banking Credential Harvest",
+      "classification": "phishing", 
+      "expected_score": 92,
+      "request": {
+        "raw_headers": "From: Banco Santander <notificaciones@santander-seguridad.tk>\nTo: cliente@empresa.com\nSubject: URGENTE: Actualización de Datos Bancarios\nReply-To: soporte@malicious-site.com",
+        "raw_html": "<html><body><p>Estimado cliente,</p><p>Por motivos de seguridad, necesitamos que actualice sus datos bancarios inmediatamente.</p><p>Ingrese sus credenciales aquí: <a href='https://santander-actualizacion.tk/login'>Portal Seguro</a></p><p>Si no actualiza en las próximas 2 horas, su cuenta será bloqueada.</p></body></html>",
+        "text_body": "Estimado cliente,\n\nPor motivos de seguridad, necesitamos que actualice sus datos bancarios inmediatamente.\n\nIngrese sus credenciales aquí: https://santander-actualizacion.tk/login\n\nSi no actualiza en las próximas 2 horas, su cuenta será bloqueada.\n\nBanco Santander",
+        "attachments_meta": [
+          {
+            "filename": "formulario_actualizacion.exe",
+            "mime": "application/x-executable",
+            "size": 2048000,
+            "hash": "sha256:deadbeef123456789"
+          }
+        ],
+        "account_context": {
+          "user_locale": "es-MX",
+          "trusted_senders": [],
+          "owned_domains": ["empresa.com"]
+        }
+      },
+      "expected_reasons": ["Adjunto ejecutable sospechoso", "Reply-To no coincide", "Solicitud urgente de credenciales"]
+    }
+  ],
+  "suspicious_examples": [
+    {
+      "name": "Unknown Financial Request",
+      "classification": "sospechoso",
+      "expected_score": 55,
+      "request": {
+        "raw_headers": "From: Departamento Financiero <finanzas@empresa-consultoria.com>\nTo: empleado@empresa.com\nSubject: Verificación de Cuenta Bancaria",
+        "raw_html": "<html><body><p>Hola,</p><p>Necesitamos verificar la información de tu cuenta bancaria para procesar tu pago.</p><p>Por favor, proporciona los siguientes datos:</p><ul><li>Número de cuenta</li><li>Código SWIFT</li></ul><p>Envía la información a este correo.</p></body></html>",
+        "text_body": "Hola,\n\nNecesitamos verificar la información de tu cuenta bancaria para procesar tu pago.\n\nPor favor, proporciona los siguientes datos:\n- Número de cuenta\n- Código SWIFT\n\nEnvía la información a este correo.\n\nDepartamento Financiero",
+        "attachments_meta": [],
+        "account_context": {
+          "user_locale": "es-CL",
+          "trusted_senders": [],
+          "owned_domains": ["empresa.com"]
+        }
+      },
+      "expected_reasons": ["Solicitud de información bancaria", "Remitente no verificado", "Dominio externo"]
+    },
+    {
+      "name": "Generic Security Warning",
+      "classification": "sospechoso",
+      "expected_score": 48,
+      "request": {
+        "raw_headers": "From: IT Security <security@it-alerts.net>\nTo: user@company.com\nSubject: Security Alert: Update Required",
+        "raw_html": "<html><body><p>Dear user,</p><p>We detected suspicious activity on your account.</p><p>Please update your security settings by clicking here: https://security-update-portal.com</p><p>This link expires in 48 hours.</p></body></html>",
+        "text_body": "Dear user,\n\nWe detected suspicious activity on your account.\n\nPlease update your security settings by clicking here: https://security-update-portal.com\n\nThis link expires in 48 hours.\n\nIT Security Team",
+        "attachments_meta": [],
+        "account_context": {
+          "user_locale": "en-US",
+          "trusted_senders": ["it@company.com"],
+          "owned_domains": ["company.com"]
+        }
+      },
+      "expected_reasons": ["Dominio externo sospechoso", "Mezcla de idiomas", "Actividad sospechosa reportada"]
+    }
+  ],
+  "legitimate_examples": [
+    {
+      "name": "Legitimate PayPal Transaction",
+      "classification": "seguro", 
+      "expected_score": 15,
+      "request": {
+        "raw_headers": "From: PayPal <service@paypal.com>\nTo: customer@example.com\nSubject: Your Recent Transaction\nAuthentication-Results: mx.example.com; dmarc=pass header.from=paypal.com; spf=pass smtp.mailfrom=paypal.com; dkim=pass header.d=paypal.com",
+        "raw_html": "<html><body><h1>Transaction Confirmation</h1><p>Thank you for your recent transaction.</p><p>Transaction ID: TXN123456789</p><p>Amount: $25.00</p><p>Merchant: Example Store</p><p>If you have questions, visit our Help Center.</p></body></html>",
+        "text_body": "Transaction Confirmation\n\nThank you for your recent transaction.\n\nTransaction ID: TXN123456789\nAmount: $25.00\nMerchant: Example Store\n\nIf you have questions, visit our Help Center.\n\nPayPal Team",
+        "attachments_meta": [],
+        "account_context": {
+          "user_locale": "en-US",
+          "trusted_senders": ["service@paypal.com"],
+          "owned_domains": ["example.com"]
+        }
+      },
+      "expected_reasons": ["Autenticación correcta", "Remitente confiable", "Contenido legítimo"]
+    },
+    {
+      "name": "Internal Company Communication",
+      "classification": "seguro",
+      "expected_score": 8,
+      "request": {
+        "raw_headers": "From: Recursos Humanos <rrhh@empresa.com>\nTo: empleados@empresa.com\nSubject: Recordatorio: Reunión de Equipo\nAuthentication-Results: mx.empresa.com; dmarc=pass header.from=empresa.com; spf=pass smtp.mailfrom=empresa.com; dkim=pass header.d=empresa.com",
+        "raw_html": "<html><body><p>Hola equipo,</p><p>Les recordamos que mañana tenemos la reunión mensual a las 10:00 AM en la sala de conferencias.</p><p>Temas a tratar:</p><ul><li>Resultados del mes</li><li>Proyectos en curso</li><li>Próximas vacaciones</li></ul><p>Saludos,<br>Recursos Humanos</p></body></html>",
+        "text_body": "Hola equipo,\n\nLes recordamos que mañana tenemos la reunión mensual a las 10:00 AM en la sala de conferencias.\n\nTemas a tratar:\n- Resultados del mes\n- Proyectos en curso\n- Próximas vacaciones\n\nSaludos,\nRecursos Humanos",
+        "attachments_meta": [],
+        "account_context": {
+          "user_locale": "es-ES",
+          "trusted_senders": ["rrhh@empresa.com"],
+          "owned_domains": ["empresa.com"]
+        }
+      },
+      "expected_reasons": ["Dominio interno", "Remitente confiable", "Comunicación rutinaria"]
+    }
+  ]
+}

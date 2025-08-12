@@ -1,0 +1,228 @@
+# ============================================================================
+# CODEOWNERS - PHISHING DETECTOR
+# Definición de propietarios de código para revisiones automáticas
+# Todos los cambios requieren aprobación de los propietarios correspondientes
+# ============================================================================
+
+# ============================================================================
+# CONFIGURACIÓN GLOBAL
+# ============================================================================
+
+# Propietarios por defecto para todo el repositorio
+# Todos los archivos requieren revisión del equipo de seguridad
+* @security-team @devops-team
+
+# ============================================================================
+# CÓDIGO FUENTE Y APLICACIÓN
+# ============================================================================
+
+# Código fuente principal de la aplicación
+src/ @security-team @backend-team
+src/app.py @security-team @backend-team @tech-lead
+src/service.py @security-team @backend-team @tech-lead
+
+# Análisis de seguridad específico para phishing
+src/header_analysis.py @security-team @phishing-experts
+src/url_analysis.py @security-team @phishing-experts
+src/nlp_features.py @security-team @ml-team @phishing-experts
+
+# Integración con Gemini API (requiere revisión adicional)
+src/gemini_client.py @security-team @ml-team @api-integrations
+
+# Manejo de datos sensibles
+src/redaction.py @security-team @privacy-team @legal-team
+
+# Schemas y modelos de datos
+src/schema.py @security-team @backend-team @api-team
+
+# ============================================================================
+# TESTS Y QUALITY ASSURANCE
+# ============================================================================
+
+# Tests unitarios y de integración
+tests/ @security-team @backend-team @qa-team
+tests/test_service.py @security-team @backend-team @tech-lead
+tests/test_api.py @security-team @api-team
+tests/conftest.py @security-team @backend-team
+
+# ============================================================================
+# INFRAESTRUCTURA Y DEPLOYMENT
+# ============================================================================
+
+# Terraform - infraestructura crítica
+terraform/ @devops-team @security-team @infrastructure-team
+terraform/main.tf @devops-team @security-team @tech-lead
+terraform/monitoring.tf @devops-team @monitoring-team
+terraform/variables.tf @devops-team @infrastructure-team
+
+# Configuraciones de deployment
+deployment/ @devops-team @security-team
+deployment/cloud-run.yaml @devops-team @kubernetes-team
+deployment/secrets-setup.sh @devops-team @security-team @tech-lead
+
+# ============================================================================
+# CI/CD Y AUTOMATIZACIÓN
+# ============================================================================
+
+# GitHub Actions workflows - cambios críticos
+.github/workflows/ @devops-team @security-team
+.github/workflows/ci.yml @devops-team @backend-team @tech-lead
+.github/workflows/release.yml @devops-team @release-team @tech-lead
+
+# Makefile y scripts de automatización
+Makefile @devops-team @backend-team
+scripts/ @devops-team @backend-team
+
+# ============================================================================
+# CONFIGURACIÓN DE SEGURIDAD
+# ============================================================================
+
+# Configuración de seguridad - REQUIERE MÚLTIPLES APROBACIONES
+security/ @security-team @compliance-team
+.gitleaks.toml @security-team @devops-team
+.semgrepignore @security-team @devops-team
+security/bandit.yaml @security-team @backend-team
+security/semgrep-rules.yaml @security-team @sast-team
+
+# Pre-commit hooks - afectan a todo el equipo
+.pre-commit-config.yaml @devops-team @security-team @tech-lead
+
+# ============================================================================
+# MONITORING Y OBSERVABILIDAD
+# ============================================================================
+
+# Configuración de monitoreo
+monitoring/ @devops-team @monitoring-team @sre-team
+monitoring/grafana-dashboard.json @monitoring-team @sre-team
+monitoring/alert-rules.yaml @monitoring-team @sre-team @on-call-team
+
+# Prometheus configuration
+prometheus.yml @monitoring-team @devops-team
+
+# ============================================================================
+# CONTENEDORES Y ORQUESTACIÓN
+# ============================================================================
+
+# Docker configuration - seguridad crítica
+Dockerfile @devops-team @security-team @backend-team
+docker-compose.yml @devops-team @backend-team
+
+# ============================================================================
+# GMAIL ADD-ON Y INTEGRACIONES
+# ============================================================================
+
+# Google Apps Script para Gmail Add-on
+gmail-addon/ @frontend-team @google-workspace-team @security-team
+gmail-addon/Code.gs @frontend-team @google-workspace-team @tech-lead
+gmail-addon/appsscript.json @frontend-team @google-workspace-team
+
+# ============================================================================
+# CONFIGURACIÓN DE PROYECTO
+# ============================================================================
+
+# Configuración principal de Python
+pyproject.toml @backend-team @devops-team @tech-lead
+
+# Archivos de configuración críticos
+.env.example @devops-team @security-team
+requirements.txt @backend-team @devops-team
+
+# ============================================================================
+# DOCUMENTACIÓN
+# ============================================================================
+
+# Documentación principal
+README.md @tech-lead @docs-team
+docs/ @docs-team @tech-lead
+docs/DEPLOYMENT.md @devops-team @docs-team
+
+# Documentación de API
+docs/api/ @api-team @docs-team @backend-team
+
+# ============================================================================
+# ARCHIVOS DE CONFIGURACIÓN DE REPOSITORIO
+# ============================================================================
+
+# Este mismo archivo (meta!)
+CODEOWNERS @tech-lead @devops-team @security-team
+
+# Configuración de GitHub
+.github/ISSUE_TEMPLATE/ @tech-lead @project-management
+.github/PULL_REQUEST_TEMPLATE/ @tech-lead @project-management
+.github/dependabot.yml @devops-team @security-team
+
+# ============================================================================
+# ARCHIVOS SENSIBLES Y COMPLIANCE
+# ============================================================================
+
+# Archivos relacionados con compliance y auditoría
+CHANGELOG.md @tech-lead @compliance-team @release-team
+LICENSE @legal-team @tech-lead
+
+# Configuración de secrets (plantillas)
+*.example @security-team @devops-team
+
+# ============================================================================
+# REGLAS ESPECIALES POR AMBIENTE
+# ============================================================================
+
+# Archivos específicos de producción - MÁXIMA SEGURIDAD
+terraform/environments/production/ @tech-lead @security-team @compliance-team @devops-team
+deployment/production/ @tech-lead @security-team @release-team @devops-team
+
+# Archivos de staging - revisión moderada
+terraform/environments/staging/ @devops-team @security-team
+deployment/staging/ @devops-team @backend-team
+
+# Archivos de desarrollo - revisión rápida
+terraform/environments/dev/ @devops-team @backend-team
+deployment/dev/ @devops-team @backend-team
+
+# ============================================================================
+# CONFIGURACIÓN DE HERRAMIENTAS DE ANÁLISIS
+# ============================================================================
+
+# Configuración de linters y formatters
+.flake8 @backend-team @devops-team
+.black @backend-team
+.isort.cfg @backend-team
+.mypy.ini @backend-team @type-safety-team
+
+# Configuración de testing
+pytest.ini @backend-team @qa-team
+.coveragerc @backend-team @qa-team
+
+# ============================================================================
+# ARCHIVOS DE DATOS Y EJEMPLOS
+# ============================================================================
+
+# Datos de ejemplo para testing (pueden contener información sensible)
+examples/ @security-team @backend-team @qa-team
+test_cases.json @security-team @phishing-experts @qa-team
+
+# ============================================================================
+# CONFIGURACIÓN DE NOTIFICACIONES
+# ============================================================================
+
+# Los siguientes equipos reciben notificaciones automáticas:
+# - @security-team: Todos los cambios (seguridad crítica)
+# - @devops-team: Infraestructura, CI/CD, deployment
+# - @backend-team: Código fuente, tests, configuración de app
+# - @tech-lead: Cambios críticos y arquitecturales
+# - @compliance-team: Archivos relacionados con compliance
+# - @monitoring-team: Observabilidad y alertas
+
+# ============================================================================
+# REGLAS DE APROBACIÓN
+# ============================================================================
+
+# NOTAS:
+# 1. Algunos archivos requieren aprobación de múltiples equipos
+# 2. Archivos críticos de seguridad requieren al menos 2 aprobaciones
+# 3. Cambios en producción requieren aprobación de tech-lead
+# 4. Los propietarios pueden ser usuarios individuales (@username) o equipos (@team)
+# 5. Los equipos deben estar configurados en la organización de GitHub
+
+# Para configurar equipos en GitHub:
+# Settings > Member privileges > Team creation rules
+# Crear equipos: security-team, devops-team, backend-team, etc.

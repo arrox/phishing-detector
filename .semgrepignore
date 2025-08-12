@@ -1,0 +1,224 @@
+# ============================================================================
+# SEMGREP IGNORE CONFIGURATION
+# Archivos y patrones a ignorar en análisis SAST con Semgrep
+# ============================================================================
+
+# ============================================================================
+# DIRECTORIOS GENERALES A IGNORAR
+# ============================================================================
+
+# Dependencias y paquetes
+node_modules/
+venv/
+.venv/
+__pycache__/
+*.pyc
+.pip/
+.cache/
+
+# Build artifacts
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# IDE y editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Version control
+.git/
+.svn/
+.hg/
+
+# Cloud y deployment artifacts
+.terraform/
+.terraform.lock.hcl
+terraform.tfstate*
+
+# ============================================================================
+# ARCHIVOS DE CONFIGURACIÓN Y EJEMPLOS
+# ============================================================================
+
+# Templates y ejemplos (no código productivo)
+*.example
+*.template
+*.sample
+*-example.*
+*-template.*
+*-sample.*
+
+# Archivos de configuración de ejemplo
+terraform.tfvars.example
+.env.example
+config.example.*
+settings.example.*
+
+# ============================================================================
+# ARCHIVOS DE TESTING
+# ============================================================================
+
+# Directorio de tests
+tests/
+test/
+testing/
+
+# Archivos de test específicos
+test_*.py
+*_test.py
+conftest.py
+pytest.ini
+tox.ini
+
+# Mock y fixture files
+*mock*
+*fixture*
+*stub*
+
+# ============================================================================
+# DOCUMENTACIÓN Y ASSETS
+# ============================================================================
+
+# Documentación
+docs/
+documentation/
+*.md
+*.rst
+*.txt
+README*
+CHANGELOG*
+LICENSE*
+AUTHORS*
+
+# Assets estáticos
+static/
+assets/
+images/
+img/
+*.jpg
+*.jpeg
+*.png
+*.gif
+*.svg
+*.ico
+
+# ============================================================================
+# ARCHIVOS DE LOGS Y TEMPORALES
+# ============================================================================
+
+# Log files
+*.log
+logs/
+log/
+
+# Temporary files
+*.tmp
+*.temp
+temp/
+tmp/
+
+# OS generated files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ============================================================================
+# ARCHIVOS DE CI/CD Y DEPLOYMENT
+# ============================================================================
+
+# GitHub Actions (excepto workflows principales)
+.github/ISSUE_TEMPLATE/
+.github/PULL_REQUEST_TEMPLATE/
+.github/dependabot.yml
+
+# Docker
+Dockerfile.*
+docker-compose.override.yml
+.dockerignore
+
+# Scripts de deployment (revisados manualmente)
+scripts/deploy*
+deploy/
+deployment/
+
+# ============================================================================
+# ARCHIVOS DE CONFIGURACIÓN DE HERRAMIENTAS
+# ============================================================================
+
+# Linting y formatting
+.eslintrc*
+.prettierrc*
+.flake8
+.pylintrc
+.black
+.isort.cfg
+pyproject.toml  # Solo ignorar sección de herramientas
+
+# Coverage y testing tools
+.coveragerc
+coverage.xml
+.coverage
+htmlcov/
+
+# Git hooks
+.git/hooks/
+.pre-commit-config.yaml
+
+# ============================================================================
+# PATRONES ESPECÍFICOS A IGNORAR
+# ============================================================================
+
+# Archivos con configuración de desarrollo local
+.env.local
+.env.development
+local_settings.py
+local_config.*
+
+# Archivos de backup
+*.bak
+*.backup
+*.old
+
+# Compressed files
+*.zip
+*.tar
+*.tar.gz
+*.rar
+*.7z
+
+# ============================================================================
+# REGLAS ESPECÍFICAS PARA PHISHING DETECTOR
+# ============================================================================
+
+# Archivos de datos de ejemplo para testing
+examples/
+test_cases.json
+sample_emails/
+mock_data/
+
+# Gmail addon development files (Apps Script)
+gmail-addon/*.json  # Solo archivos de configuración
+gmail-addon/appsscript.json
+
+# Prometheus configuration
+prometheus.yml
+
+# ============================================================================
+# COMENTARIOS DE CONFIGURACIÓN
+# ============================================================================
+
+# NOTA: Los siguientes archivos SÍ se analizan:
+# - src/*.py (código principal)
+# - .github/workflows/*.yml (pipelines CI/CD)
+# - terraform/*.tf (infraestructura)
+# - Dockerfile (configuración de contenedor)
+# - docker-compose.yml (orquestación)
+
+# IMPORTANTE: 
+# - Este archivo previene falsos positivos en archivos de configuración
+# - El código productivo siempre se analiza completamente
+# - Los tests se ignoran porque pueden contener datos sensibles mock
+# - La documentación se ignora para acelerar el análisis
