@@ -515,12 +515,12 @@ jobs:
 
       - name: 'Crear GitHub Release (solo para production)'
         if: needs.pre-deployment.outputs.environment == 'production' && needs.deploy-production.result == 'success'
-        uses: actions/create-release@v1
+        uses: softprops/action-gh-release@v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           tag_name: v${{ needs.pre-deployment.outputs.version }}
-          release_name: 'Release v${{ needs.pre-deployment.outputs.version }}'
+          name: 'Release v${{ needs.pre-deployment.outputs.version }}'
           body: |
             ## 🚀 Phishing Detector Release v${{ needs.pre-deployment.outputs.version }}
             
