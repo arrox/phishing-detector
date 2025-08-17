@@ -18,11 +18,12 @@ class GeminiClient:
     def __init__(self, api_key: str, model_name: str = "gemini-2.5-pro"):
         self.api_key = api_key
         self.model_name = model_name
-        self.timeout = 1.2  # 1200ms
-        self.max_retries = 1
+        self.timeout = 30.0  # 30 seconds for complex Gemini 2.5 Pro analysis
+        self.max_retries = 2
         
         # Configure Gemini
         genai.configure(api_key=api_key)
+        logger.info(f"Gemini configured with model: {model_name}")
         
         # Safety settings - allow all content for security analysis
         self.safety_settings = {
@@ -91,7 +92,7 @@ class GeminiClient:
                 continue
                 
             except Exception as e:
-                logger.error(f"Gemini error on attempt {attempt + 1}: {e}")
+                logger.error(f"Gemini error on attempt {attempt + 1}: {type(e).__name__}: {e}")
                 if attempt < self.max_retries:
                     await asyncio.sleep(0.1 + random.uniform(0, 0.2))  # Jitter
                 continue
@@ -106,14 +107,29 @@ class GeminiClient:
             full_prompt = f"{system_prompt}\n\n{user_prompt}"
             
             # Generate response
+            logger.info(f"Calling Gemini 2.5 Pro with prompt length: {len(full_prompt)}")
             response = await asyncio.get_event_loop().run_in_executor(
                 None,
                 self.model.generate_content,
                 full_prompt
             )
+            logger.info(f"Gemini 2.5 Pro response received: {type(response)}")
             
             if response.candidates and len(response.candidates) > 0:
-                return response.candidates[0].content.parts[0].text
+                candidate = response.candidates[0]
+                if hasattr(candidate, 'content') and candidate.content:
+                    if hasattr(candidate.content, 'parts') and len(candidate.content.parts) > 0:
+                        part = candidate.content.parts[0]
+                        if hasattr(part, 'text') and part.text:
+                            return part.text
+                        else:
+                            logger.warning(f"Gemini response part has no text: {part}")
+                    else:
+                        logger.warning(f"Gemini response has no parts: {candidate.content}")
+                else:
+                    logger.warning(f"Gemini candidate has no content: {candidate}")
+            else:
+                logger.warning(f"Gemini response has no candidates: {response}")
             
             return None
             

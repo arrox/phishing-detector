@@ -78,4 +78,4 @@ class GeminiPromptData(BaseModel):
     url_metadata: List[Dict[str, Any]]
     heuristic_summary: str
     account_context: AccountContext
-    latency_budget_ms: int = 1200
+    latency_budget_ms: int = 35000  # 35 seconds total budget for Gemini 2.5 Pro

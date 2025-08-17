@@ -3,8 +3,12 @@
   "dependencies": {
     "enabledAdvancedServices": []
   },
+  "urlFetchWhitelist": [
+    "https://phishing-detector-987579702778.us-central1.run.app"
+  ],
   "oauthScopes": [
     "https://www.googleapis.com/auth/gmail.addons.current.message.readonly",
+    "https://www.googleapis.com/auth/gmail.readonly",
     "https://www.googleapis.com/auth/script.external_request"
   ],
   "addOns": {

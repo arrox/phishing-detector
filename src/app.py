@@ -93,7 +93,16 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(s
         logger.warning("API_TOKEN not configured, skipping auth")
         return {"user_id": "anonymous"}
     
-    if credentials.credentials != expected_token:
+    # For debugging, strip any whitespace
+    received_token = credentials.credentials.strip()
+    expected_token = expected_token.strip()
+    
+    logger.info(f"Auth debug - received: '{received_token}', expected: '{expected_token}'")
+    
+    if received_token != expected_token:
+        logger.warning(f"Token mismatch - received len: {len(received_token)}, expected len: {len(expected_token)}")
+        logger.warning(f"Received bytes: {received_token.encode()}")
+        logger.warning(f"Expected bytes: {expected_token.encode()}")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid authentication token",

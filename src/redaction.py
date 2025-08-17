@@ -1,6 +1,6 @@
 import re
 import hashlib
-from typing import str, List, Tuple
+from typing import List, Tuple
 import logging
 
 logger = logging.getLogger(__name__)

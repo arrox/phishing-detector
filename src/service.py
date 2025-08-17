@@ -51,7 +51,7 @@ class PhishingDetectionService:
         self.gemini_client = GeminiClient(gemini_api_key)
         
         # SLO targets
-        self.target_latency_ms = 2500  # p95 target
+        self.target_latency_ms = 35000  # 35s target for complete analysis including Gemini 2.5 Pro
         self.heuristic_budget_ms = 700  # Budget for heuristic pipeline
         self.gemini_budget_ms = 1200   # Budget for Gemini call
     
@@ -91,7 +91,7 @@ class PhishingDetectionService:
             
             # Step 3: Call Gemini with remaining budget
             remaining_budget = self.target_latency_ms - (heuristic_time * 1000)
-            prompt_data.latency_budget_ms = max(int(remaining_budget), 800)
+            prompt_data.latency_budget_ms = max(int(remaining_budget), 30000)  # Minimum 30s for Gemini 2.5 Pro
             
             gemini_response = await self.gemini_client.classify_email(prompt_data)
             
