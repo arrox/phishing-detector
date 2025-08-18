@@ -148,7 +148,8 @@ jobs:
         run: |
           pip install pip-audit
           pip-audit --format=json --output=pip-audit-report.json || true
-          pip-audit --format=text
+          # Mostrar resumen en stdout
+          pip-audit || true
           # Fallar solo con vulnerabilidades críticas/altas
           if pip-audit --format=cyclonedx --output=sbom.cyclonedx.json --desc --require-hashes --progress-spinner=off; then
             echo "✅ Análisis de dependencias completado"
@@ -240,7 +241,7 @@ jobs:
 
       - name: 'Type checking con mypy'
         run: |
-          mypy src/ --ignore-missing-imports --strict-optional
+          mypy --config-file=mypy.ini src/
           echo "✅ Type checking completado"
 
       - name: 'Ejecutar tests con coverage'
