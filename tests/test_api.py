@@ -75,7 +75,7 @@ class TestPhishingAPI:
                 classification="phishing",
                 risk_score=85,
                 top_reasons=["Suspicious domain", "DMARC failure", "Urgent request"],
-                non_technical_summary="Este mensaje intenta robar información personal.",
+                non_technical_summary="Este mensaje intenta robar información.",
                 recommended_actions=["No hacer clic", "Reportar mensaje"],
                 evidence=Evidence(
                     header_findings=HeaderFindings(spf_dkim_dmarc="fail"),

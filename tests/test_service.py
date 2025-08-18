@@ -18,7 +18,7 @@ class TestPhishingDetectionService:
             classification="phishing",
             risk_score=95,
             top_reasons=["DMARC failed", "Suspicious domain", "Urgent request"],
-            non_technical_summary="Este mensaje intenta robar tu información personal usando una URL falsa de PayPal.",
+            non_technical_summary="Este mensaje intenta robar información.",
             recommended_actions=["No hagas clic en enlaces", "Reporta el mensaje"],
             evidence=Evidence(
                 header_findings=HeaderFindings(spf_dkim_dmarc="fail"),
@@ -52,7 +52,7 @@ class TestPhishingDetectionService:
             classification="seguro",
             risk_score=15,
             top_reasons=["DMARC passed", "Trusted sender", "No suspicious content"],
-            non_technical_summary="Este mensaje parece legítimo y no presenta señales de riesgo.",
+            non_technical_summary="Este mensaje parece legítimo.",
             recommended_actions=[
                 "El mensaje parece seguro",
                 "Mantén precauciones generales",
@@ -80,7 +80,7 @@ class TestPhishingDetectionService:
             classification="sospechoso",
             risk_score=55,
             top_reasons=["Unknown sender", "Generic request", "No authentication"],
-            non_technical_summary="Este mensaje presenta algunas características sospechosas.",
+            non_technical_summary="Este mensaje es sospechoso.",
             recommended_actions=["Verificar remitente", "Precaución con enlaces"],
             evidence=Evidence(
                 header_findings=HeaderFindings(),
@@ -103,22 +103,24 @@ class TestPhishingDetectionService:
         """Test fallback when Gemini fails."""
         # Mock Gemini failure
         mock_gemini_client.classify_email.return_value = None
-        mock_gemini_client.create_fallback_response.return_value = ClassificationResponse(
-            classification="sospechoso",
-            risk_score=50,
-            top_reasons=[
-                "Análisis heurístico",
-                "LLM no disponible",
-                "Clasificación conservadora",
-            ],
-            non_technical_summary="No pudimos analizar completamente este mensaje. Recomendamos precaución.",
-            recommended_actions=["Verificar remitente", "No hacer clic en enlaces"],
-            evidence=Evidence(
-                header_findings=HeaderFindings(),
-                url_findings=[],
-                nlp_signals=["Análisis fallback"],
-            ),
-            latency_ms=0,
+        mock_gemini_client.create_fallback_response.return_value = (
+            ClassificationResponse(
+                classification="sospechoso",
+                risk_score=50,
+                top_reasons=[
+                    "Análisis heurístico",
+                    "LLM no disponible",
+                    "Clasificación conservadora",
+                ],
+                non_technical_summary="Recomendamos precaución.",
+                recommended_actions=["Verificar remitente", "No hacer clic en enlaces"],
+                evidence=Evidence(
+                    header_findings=HeaderFindings(),
+                    url_findings=[],
+                    nlp_signals=["Análisis fallback"],
+                ),
+                latency_ms=0,
+            )
         )
 
         result = await detection_service.classify_email(sample_phishing_request)
@@ -130,9 +132,12 @@ class TestPhishingDetectionService:
 
     @pytest.mark.asyncio
     async def test_security_policy_elevation(
-        self, detection_service, sample_phishing_request, mock_gemini_client
+        self,
+        detection_service,
+        sample_phishing_request,
+        mock_gemini_client,
     ):
-        """Test that security policies elevate classification when critical signals are present."""
+        """Test security policies elevate classification with critical signals."""
         # Mock Gemini returning "seguro" despite critical signals
         mock_response = ClassificationResponse(
             classification="seguro",
@@ -170,10 +175,12 @@ class TestPhishingDetectionService:
                 "Executable files",
                 "Unknown sender",
             ],
-            non_technical_summary="Este mensaje contiene archivos ejecutables peligrosos.",
+            non_technical_summary="Archivos peligrosos.",
             recommended_actions=["No abrir adjuntos", "Eliminar mensaje"],
             evidence=Evidence(
-                header_findings=HeaderFindings(), url_findings=[], nlp_signals=[]
+                header_findings=HeaderFindings(),
+                url_findings=[],
+                nlp_signals=[],
             ),
             latency_ms=0,
         )
