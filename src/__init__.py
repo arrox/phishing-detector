@@ -1,7 +1,7 @@
 """
 Phishing Detection System - Source Package
 
-Este paquete contiene todos los módulos principales para el sistema de 
+Este paquete contiene todos los módulos principales para el sistema de
 detección de phishing.
 """
 
