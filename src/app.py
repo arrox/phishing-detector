@@ -70,7 +70,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="Phishing Detection API",
     description="Microservicio de detección de phishing con análisis heurístico + "
-    "Gemini 2.5",
+    "Claude Sonnet 4",
     version="1.0.0",
     lifespan=lifespan,
     docs_url="/docs",
@@ -190,7 +190,7 @@ async def readiness_check() -> Dict[str, Any]:
     return {
         "status": "ready",
         "service": "phishing-detection",
-        "components": {"gemini_client": "ready", "analyzers": "ready"},
+        "components": {"claude_client": "ready", "analyzers": "ready"},
     }
 
 
@@ -288,7 +288,7 @@ async def root():
         "service": "Phishing Detection API",
         "version": "1.0.0",
         "description": "Microservicio de detección de phishing con análisis "
-        "heurístico + Gemini 2.5",
+        "heurístico + Claude Sonnet 4",
         "docs_url": "/docs",
         "health_url": "/health",
         "endpoints": {
@@ -333,7 +333,7 @@ if __name__ == "__main__":
     print(f"Workers: {workers}")
     print(f"Log Level: {log_level}")
     print(f"Environment: {os.getenv('ENVIRONMENT', 'not-set')}")
-    print(f"GEMINI_API_KEY: {'set' if os.getenv('GEMINI_API_KEY') else 'not-set'}")
+    print(f"CLAUDE_API_KEY: {'set' if os.getenv('CLAUDE_API_KEY') else 'not-set'}")
     print(f"API_TOKEN: {'set' if os.getenv('API_TOKEN') else 'not-set'}")
 
     # Run with Uvicorn
