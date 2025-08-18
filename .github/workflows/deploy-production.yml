@@ -18,7 +18,7 @@ on:
         type: boolean
 
 permissions:
-  contents: read
+  contents: write
   id-token: write
 
 env:
@@ -234,23 +234,31 @@ jobs:
           
       - name: 'Crear GitHub Release'
         if: needs.deploy-production.result == 'success'
-        uses: actions/create-release@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        uses: softprops/action-gh-release@v1
         with:
-          tag_name: v${{ needs.pre-deployment-checks.outputs.version }}
-          release_name: 'Production Release v${{ needs.pre-deployment-checks.outputs.version }}'
+          tag_name: ${{ needs.pre-deployment-checks.outputs.version }}
+          name: 'Production Release ${{ needs.pre-deployment-checks.outputs.version }}'
           body: |
             🚀 **Deployment a Producción Exitoso**
             
             **Versión:** ${{ needs.pre-deployment-checks.outputs.version }}
-            **Timestamp:** $(date -u '+%Y-%m-%d %H:%M:%S UTC')
+            **Timestamp:** ${{ github.event.head_commit.timestamp }}
             **Commit:** ${{ github.sha }}
             
-            **Servicios desplegados:**
-            - Phishing Detector API
+            **🔧 Servicios desplegados:**
+            - Phishing Detector API con Claude Sonnet 4
+            - Gmail Addon con clasificación mejorada
+            - Endpoints: /analyze/gmail y /analyze/eml
             
-            **Ambiente:** Producción
-            **URL:** https://${{ env.SERVICE_NAME }}-${{ env.PROJECT_ID }}.a.run.app
+            **🌐 Ambiente:** Producción
+            **📍 URL:** https://${{ env.SERVICE_NAME }}-${{ env.PROJECT_ID }}.a.run.app
+            
+            **✨ Características:**
+            - Análisis avanzado con Claude Sonnet 4
+            - Clasificación: SEGURO/SPAM/SOSPECHOSO/PHISHING
+            - Respuestas humanizadas
+            - Reducción de falsos positivos
           draft: false
           prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
