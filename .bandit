@@ -1,7 +1,10 @@
-[bandit]
-exclude_dirs = tests,venv,.venv,node_modules
-skips = B104,B311,B110
+exclude_dirs:
+  - tests
+  - venv
+  - .venv
+  - node_modules
 
-# B104: hardcoded_bind_all_interfaces - acceptable for containerized deployment
-# B311: random - used for non-cryptographic jitter in retry logic
-# B110: try_except_pass - acceptable for optional network calls with fallback
+skips:
+  - B104  # hardcoded_bind_all_interfaces - acceptable for containerized deployment
+  - B311  # random - used for non-cryptographic jitter in retry logic
+  - B110  # try_except_pass - acceptable for optional network calls with fallback

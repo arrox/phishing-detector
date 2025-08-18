@@ -4,7 +4,7 @@ import re
 import time
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Tuple
-from urllib.parse import urljoin, urlparse
+from urllib.parse import urlparse
 
 import dns.resolver
 import httpx
@@ -141,7 +141,8 @@ class URLAnalyzer:
 
         # Extract from text using regex
         url_pattern = re.compile(
-            r"https?://(?:[-\w.])+(?:[:\d]+)?(?:/(?:[\w/_.])*(?:\?(?:[\w&=%.])*)?(?:#(?:[\w.])*)?)?",
+            r"https?://(?:[-\w.])+(?:[:\d]+)?"
+            r"(?:/(?:[\w/_.])*(?:\?(?:[\w&=%.])*)?(?:#(?:[\w.])*)?)?",
             re.IGNORECASE,
         )
 
@@ -185,7 +186,7 @@ class URLAnalyzer:
             # Check for suspicious patterns
             for pattern in self.suspicious_patterns:
                 if re.search(pattern, url, re.IGNORECASE):
-                    risk_reasons.append(f"Suspicious pattern detected")
+                    risk_reasons.append("Suspicious pattern detected")
                     risk_level = "medium"
                     break
 

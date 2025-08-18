@@ -63,7 +63,8 @@ async def lifespan(app: FastAPI):
 # Create FastAPI app
 app = FastAPI(
     title="Phishing Detection API",
-    description="Microservicio de detección de phishing con análisis heurístico + Gemini 2.5",
+    description="Microservicio de detección de phishing con análisis heurístico + "
+    "Gemini 2.5",
     version="1.0.0",
     lifespan=lifespan,
     docs_url="/docs",
@@ -111,12 +112,16 @@ async def get_current_user(
     expected_token = expected_token.strip()
 
     logger.info(
-        f"Auth debug - received: '{received_token}', expected: '{expected_token}'"
+        "Auth debug - received: '%s', expected: '%s'",
+        received_token,
+        expected_token,
     )
 
     if received_token != expected_token:
         logger.warning(
-            f"Token mismatch - received len: {len(received_token)}, expected len: {len(expected_token)}"
+            "Token mismatch - received len: %d, expected len: %d",
+            len(received_token),
+            len(expected_token),
         )
         logger.warning(f"Received bytes: {received_token.encode()}")
         logger.warning(f"Expected bytes: {expected_token.encode()}")
@@ -171,8 +176,6 @@ async def health_check() -> Dict[str, Any]:
 @app.get("/ready")
 async def readiness_check() -> Dict[str, Any]:
     """Readiness check endpoint."""
-    global detection_service
-
     if not detection_service:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Service not ready"
@@ -209,8 +212,6 @@ async def classify_email(
 
     Returns classification with risk score, reasons, and recommendations.
     """
-    global detection_service
-
     if not detection_service:
         ERROR_COUNT.labels(error_type="service_unavailable").inc()
         raise HTTPException(
@@ -224,7 +225,8 @@ async def classify_email(
             ERROR_COUNT.labels(error_type="invalid_request").inc()
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="At least one of raw_headers, raw_html, or text_body must be provided",
+                detail="At least one of raw_headers, raw_html, or text_body must be "
+                "provided",
             )
 
         # Classify email
@@ -279,7 +281,8 @@ async def root():
     return {
         "service": "Phishing Detection API",
         "version": "1.0.0",
-        "description": "Microservicio de detección de phishing con análisis heurístico + Gemini 2.5",
+        "description": "Microservicio de detección de phishing con análisis "
+        "heurístico + Gemini 2.5",
         "docs_url": "/docs",
         "health_url": "/health",
         "endpoints": {

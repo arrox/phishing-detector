@@ -1,8 +1,7 @@
 import logging
 import re
-from collections import Counter
 from dataclasses import dataclass
-from typing import Any, Dict, List, Tuple
+from typing import List, Tuple
 
 logger = logging.getLogger(__name__)
 
@@ -46,13 +45,17 @@ class NLPAnalyzer:
         self.credential_patterns = [
             # Spanish
             r"\b(?:contraseña|clave|password|pin|código)\b",
-            r"\b(?:verificar|confirmar|actualizar|validar)\s+(?:cuenta|datos|información)\b",
-            r"\b(?:ingresar|introducir|proporcionar)\s+(?:sus?\s+)?(?:datos|credenciales)\b",
+            r"\b(?:verificar|confirmar|actualizar|validar)\s+(?:cuenta|datos|"
+            r"información)\b",
+            r"\b(?:ingresar|introducir|proporcionar)\s+(?:sus?\s+)?(?:datos|"
+            r"credenciales)\b",
             r"\b(?:hacer\s+)?(?:clic|click)\s+(?:aquí|abajo|en\s+el\s+enlace)\b",
             # English
             r"\b(?:password|username|login|credentials|pin|security code)\b",
-            r"\b(?:verify|confirm|update|validate)\s+(?:account|information|details)\b",
-            r"\b(?:enter|provide|submit)\s+(?:your\s+)?(?:password|details|information)\b",
+            r"\b(?:verify|confirm|update|validate)\s+(?:account|information|"
+            r"details)\b",
+            r"\b(?:enter|provide|submit)\s+(?:your\s+)?(?:password|details|"
+            r"information)\b",
             r"\b(?:click\s+(?:here|below|the\s+link))\b",
         ]
 

@@ -3,7 +3,7 @@ import json
 import logging
 import random
 import time
-from typing import Any, Dict, Optional
+from typing import Optional
 
 import google.generativeai as genai
 from google.generativeai.types import HarmBlockThreshold, HarmCategory
@@ -153,9 +153,16 @@ class GeminiClient:
 
     def _build_system_prompt(self) -> str:
         """Build the system prompt for Gemini."""
-        return """Eres un clasificador de phishing. Combinas señales heurísticas y de contenido para emitir un dictamen claro para personas no técnicas en español neutro. Tu objetivo es minimizar falsos negativos (proteger al usuario): ante duda razonable, eleva la severidad.
+        return """Eres un clasificador de phishing. Combinas señales heurísticas y de \
+contenido para emitir un dictamen claro para personas no técnicas en español neutro. \
+Tu objetivo es minimizar falsos negativos (proteger al usuario): ante duda razonable, \
+eleva la severidad.
 
-Considera: suplantación de identidad, urgencia financiera, solicitud de credenciales o pagos, URLs engañosas (look-alike, sin HTTPS, redirecciones), misalignment SPF/DKIM/DMARC, dominio recién creado, adjuntos inusuales, errores léxicos, spoofing de marca y patrones de ingeniería social. No supongas identidad real del remitente. Ajusta tu razonamiento al budget de latencia.
+Considera: suplantación de identidad, urgencia financiera, solicitud de credenciales \
+o pagos, URLs engañosas (look-alike, sin HTTPS, redirecciones), misalignment \
+SPF/DKIM/DMARC, dominio recién creado, adjuntos inusuales, errores léxicos, spoofing \
+de marca y patrones de ingeniería social. No supongas identidad real del remitente. \
+Ajusta tu razonamiento al budget de latencia.
 
 DEVUELVE SOLO JSON VÁLIDO:
 
@@ -166,17 +173,21 @@ DEVUELVE SOLO JSON VÁLIDO:
   "non_technical_summary": "≤60 palabras, claro y empático",
   "recommended_actions": ["acción 1", "acción 2"],
   "evidence": {
-    "header_findings": {"spf_dkim_dmarc": "ok|mismatch|fail", "reply_to_mismatch": false, "display_name_spoof": false},
+    "header_findings": {"spf_dkim_dmarc": "ok|mismatch|fail", \
+"reply_to_mismatch": false, "display_name_spoof": false},
     "url_findings": [{"url":"...","reason":"..."}],
     "nlp_signals": ["...","..."]
   }
 }
 
 Restricciones:
-- Si hay señales críticas (URL dudosa, solicitud de credenciales, misalignment DMARC), ELEVA severidad
-- Explica por qué una URL es riesgosa (look-alike, sin HTTPS, redirecciones, edad de dominio)
+- Si hay señales críticas (URL dudosa, solicitud de credenciales, misalignment \
+DMARC), ELEVA severidad
+- Explica por qué una URL es riesgosa (look-alike, sin HTTPS, redirecciones, \
+edad de dominio)
 - Mantén non_technical_summary SIN tecnicismos y centrado en qué hacer
-- Si evidencia insuficiente → classification="sospechoso" con recomendaciones prudentes
+- Si evidencia insuficiente → classification="sospechoso" con recomendaciones \
+prudentes
 - Nunca devuelvas texto fuera del JSON
 - Respeta latency_budget_ms (evita cadenas de razonamiento largas)"""
 
@@ -200,7 +211,7 @@ RESUMEN HEURÍSTICO:
 {prompt_data.heuristic_summary}
 
 ADJUNTOS:
-{len(prompt_data.attachments_meta)} archivos: {[f['filename'] + ' (' + f['mime'] + ')' for f in prompt_data.attachments_meta[:3]]}
+{len(prompt_data.attachments_meta)} archivos
 
 CONTEXTO:
 Dominios propios: {prompt_data.account_context.owned_domains[:3]}
@@ -294,14 +305,20 @@ Clasifica y responde SOLO con JSON válido."""
         # Determine classification based on risk score
         if risk_score >= 60:
             classification = "phishing"
-            summary = "Se detectaron múltiples señales de riesgo en este mensaje. Recomendamos precaución."
+            summary = (
+                "Se detectaron múltiples señales de riesgo en este mensaje. "
+                "Recomendamos precaución."
+            )
             actions = [
                 "No hagas clic en enlaces",
                 "No proporciones información personal",
             ]
         elif risk_score >= 40:
             classification = "sospechoso"
-            summary = "Este mensaje presenta algunas características sospechosas. Verifica antes de actuar."
+            summary = (
+                "Este mensaje presenta algunas características sospechosas. "
+                "Verifica antes de actuar."
+            )
             actions = [
                 "Verifica el remitente por canal oficial",
                 "Ten precaución con los enlaces",

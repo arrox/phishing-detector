@@ -1,7 +1,6 @@
 import asyncio
-import logging
 import time
-from typing import Any, Dict, List
+from typing import Dict, List
 
 import structlog
 
@@ -16,7 +15,6 @@ from src.schema import (
     GeminiPromptData,
     HeaderFindings,
     HeuristicFeatures,
-    URLFinding,
 )
 from src.url_analysis import URLAnalyzer
 
@@ -151,7 +149,6 @@ class PhishingDetectionService:
         # Redact PII first
         redacted_headers = self.redactor.redact_headers(request.raw_headers)
         redacted_text, text_hashes = self.redactor.redact_text(request.text_body)
-        html_snippets = self.redactor.extract_safe_snippets(request.text_body)
 
         logger.debug(
             "PII redaction completed",
@@ -402,7 +399,8 @@ class PhishingDetectionService:
                 "Clasificación conservadora",
                 "Recomendar precaución",
             ],
-            non_technical_summary="No pudimos analizar completamente este mensaje. Por precaución, recomendamos verificar su legitimidad.",
+            non_technical_summary="No pudimos analizar completamente este mensaje. "
+            "Por precaución, recomendamos verificar su legitimidad.",
             recommended_actions=[
                 "Verificar remitente por canal oficial",
                 "No hacer clic en enlaces",
