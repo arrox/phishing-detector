@@ -172,7 +172,7 @@ jobs:
       # Subir SARIF a GitHub Security tab
       - name: 'Subir SARIF a GitHub Security'
         if: always()
-        uses: github/codeql-action/upload-sarif@v2
+        uses: github/codeql-action/upload-sarif@v3
         with:
           sarif_file: gitleaks-report.sarif
         continue-on-error: true

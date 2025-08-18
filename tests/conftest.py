@@ -59,10 +59,8 @@ You have 24 hours to verify or your account will be permanently closed.
 PayPal Security Team""",
         attachments_meta=[],
         account_context=AccountContext(
-            user_locale="es-ES",
-            trusted_senders=[],
-            owned_domains=["example.com"]
-        )
+            user_locale="es-ES", trusted_senders=[], owned_domains=["example.com"]
+        ),
     )
 
 
@@ -97,8 +95,8 @@ PayPal Team""",
         account_context=AccountContext(
             user_locale="es-ES",
             trusted_senders=["service@paypal.com"],
-            owned_domains=["example.com"]
-        )
+            owned_domains=["example.com"],
+        ),
     )
 
 
@@ -134,14 +132,12 @@ Bank Security Team""",
                 filename="bank_form.pdf",
                 mime="application/pdf",
                 size=45678,
-                hash="sha256:abc123def456"
+                hash="sha256:abc123def456",
             )
         ],
         account_context=AccountContext(
-            user_locale="es-MX",
-            trusted_senders=[],
-            owned_domains=["example.com"]
-        )
+            user_locale="es-MX", trusted_senders=[], owned_domains=["example.com"]
+        ),
     )
 
 
@@ -160,14 +156,14 @@ Subject: Security Update Required
                 filename="security_update.exe",
                 mime="application/x-executable",
                 size=2048576,
-                hash="sha256:malicious123"
+                hash="sha256:malicious123",
             ),
             AttachmentMeta(
                 filename="instructions.bat",
                 mime="application/x-bat",
                 size=1024,
-                hash="sha256:suspicious456"
-            )
+                hash="sha256:suspicious456",
+            ),
         ],
-        account_context=AccountContext()
+        account_context=AccountContext(),
     )

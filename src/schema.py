@@ -53,11 +53,11 @@ class ClassificationResponse(BaseModel):
     evidence: Evidence
     latency_ms: int
 
-    @validator('non_technical_summary')
+    @validator("non_technical_summary")
     def validate_summary_length(cls, v):
         words = len(v.split())
         if words > 60:
-            raise ValueError('Summary must be 60 words or less')
+            raise ValueError("Summary must be 60 words or less")
         return v
 
 

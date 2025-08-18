@@ -266,7 +266,7 @@ keywords = [
 [[rules]]
 id = "config-file-secret"
 description = "Secret in configuration file"
-regex = '''(?i)(secret|password|token|key)["']?\s*:\s*["']?(?!(\$\{|{{|<|example|sample|test|placeholder))[A-Za-z0-9_-]{16,}["']?'''
+regex = '''(?i)(secret|password|token|key)["']?\s*:\s*["']?[A-Za-z0-9_-]{16,}["']?'''
 path = '''.*\.(yaml|yml|json)$'''
 keywords = [
     "secret:",
