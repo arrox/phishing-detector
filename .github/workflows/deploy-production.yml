@@ -17,6 +17,10 @@ on:
         default: 'false'
         type: boolean
 
+permissions:
+  contents: read
+  id-token: write
+
 env:
   REGISTRY: gcr.io
   PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
