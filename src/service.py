@@ -4,7 +4,7 @@ from typing import Dict, List
 
 import structlog
 
-from src.gemini_client import GeminiClient
+from src.claude_client import ClaudeClient
 from src.header_analysis import HeaderAnalyzer
 from src.nlp_features import NLPAnalyzer
 from src.redaction import PIIRedactor
@@ -42,19 +42,19 @@ logger = structlog.get_logger(__name__)
 class PhishingDetectionService:
     """Main service orchestrating the phishing detection pipeline."""
 
-    def __init__(self, gemini_api_key: str):
+    def __init__(self, claude_api_key: str):
         self.redactor = PIIRedactor()
         self.header_analyzer = HeaderAnalyzer()
         self.url_analyzer = URLAnalyzer()
         self.nlp_analyzer = NLPAnalyzer()
-        self.gemini_client = GeminiClient(gemini_api_key)
+        self.claude_client = ClaudeClient(claude_api_key)
 
         # SLO targets
         self.target_latency_ms = (
-            35000  # 35s target for complete analysis including Gemini 2.5 Pro
+            30000  # 30s target for complete analysis including Claude Sonnet 4
         )
         self.heuristic_budget_ms = 700  # Budget for heuristic pipeline
-        self.gemini_budget_ms = 1200  # Budget for Gemini call
+        self.claude_budget_ms = 1000  # Budget for Claude call
 
     async def classify_email(
         self, request: ClassificationRequest
@@ -89,28 +89,28 @@ class PhishingDetectionService:
                 total_score=heuristic_features.total_score,
             )
 
-            # Step 2: Prepare data for Gemini
-            prompt_data = self._prepare_gemini_prompt(request, heuristic_features)
+            # Step 2: Prepare data for Claude
+            prompt_data = self._prepare_claude_prompt(request, heuristic_features)
 
-            # Step 3: Call Gemini with remaining budget
+            # Step 3: Call Claude with remaining budget
             remaining_budget = self.target_latency_ms - (heuristic_time * 1000)
             prompt_data.latency_budget_ms = max(
-                int(remaining_budget), 30000
-            )  # Minimum 30s for Gemini 2.5 Pro
+                int(remaining_budget), 25000
+            )  # Minimum 25s for Claude Sonnet 4
 
-            gemini_response = await self.gemini_client.classify_email(prompt_data)
+            claude_response = await self.claude_client.classify_email(prompt_data)
 
-            # Step 4: Fallback if Gemini fails
-            if not gemini_response:
+            # Step 4: Fallback if Claude fails
+            if not claude_response:
                 logger.warning(
-                    "Gemini classification failed, using fallback",
+                    "Claude classification failed, using fallback",
                     request_id=request_id,
                 )
-                gemini_response = self._create_fallback_response(heuristic_features)
+                claude_response = self._create_fallback_response(heuristic_features)
 
             # Step 5: Apply security policies and finalize response
             final_response = self._apply_security_policies(
-                gemini_response, heuristic_features
+                claude_response, heuristic_features
             )
 
             # Add final latency
@@ -286,10 +286,10 @@ class PhishingDetectionService:
             )
             return 0.0
 
-    def _prepare_gemini_prompt(
+    def _prepare_claude_prompt(
         self, request: ClassificationRequest, features: HeuristicFeatures
     ) -> GeminiPromptData:
-        """Prepare data for Gemini prompt."""
+        """Prepare data for Claude prompt."""
 
         # Create heuristic summary
         summary_parts = []
@@ -383,8 +383,8 @@ class PhishingDetectionService:
     def _create_fallback_response(
         self, features: HeuristicFeatures
     ) -> ClassificationResponse:
-        """Create fallback response when Gemini is unavailable."""
-        return self.gemini_client.create_fallback_response(
+        """Create fallback response when Claude is unavailable."""
+        return self.claude_client.create_fallback_response(
             heuristic_summary=f"Score: {features.total_score:.0f}/100",
             risk_score=features.total_score,
         )

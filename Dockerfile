@@ -18,11 +18,11 @@ RUN apt-get update && apt-get install -y \
 WORKDIR /build
 
 # Copy dependency files
-COPY pyproject.toml ./
+COPY requirements.txt ./
 
 # Install dependencies
 RUN pip install --no-cache-dir --upgrade pip setuptools wheel
-RUN pip install --no-cache-dir .
+RUN pip install --no-cache-dir -r requirements.txt
 
 # Production stage
 FROM python:3.11-slim as production
@@ -54,10 +54,9 @@ COPY --from=builder /usr/local/bin /usr/local/bin
 
 # Copy application code
 COPY src/ ./src/
-COPY pyproject.toml ./
+COPY requirements.txt ./
 
-# Download spaCy model
-RUN python -m spacy download es_core_news_sm || echo "spaCy model download failed, continuing..."
+# Note: spaCy models and other heavy dependencies removed for simplified deployment
 
 # Change ownership to appuser
 RUN chown -R appuser:appuser /app

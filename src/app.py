@@ -45,15 +45,15 @@ async def lifespan(app: FastAPI):
     # Startup
     logger.info("Starting Phishing Detection Service")
 
-    # Initialize service with Gemini API key
-    gemini_api_key = os.getenv("GEMINI_API_KEY")
-    if not gemini_api_key:
-        logger.warning("GEMINI_API_KEY not set, using placeholder for testing")
-        gemini_api_key = "test-key-placeholder"
+    # Initialize service with Claude API key
+    claude_api_key = os.getenv("CLAUDE_API_KEY")
+    if not claude_api_key:
+        logger.warning("CLAUDE_API_KEY not set, using placeholder for testing")
+        claude_api_key = "test-key-placeholder"
 
     try:
-        detection_service = PhishingDetectionService(gemini_api_key)
-        logger.info("Service initialized successfully")
+        detection_service = PhishingDetectionService(claude_api_key)
+        logger.info("Service initialized successfully with Claude Sonnet 4")
     except Exception as e:
         logger.error(f"Failed to initialize service: {e}")
         # For now, allow startup to continue even if service fails

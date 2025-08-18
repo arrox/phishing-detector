@@ -62,7 +62,7 @@ jobs:
             "GCP_PROJECT_ID"
             "GCP_WORKLOAD_IDENTITY_PROVIDER" 
             "GCP_SERVICE_ACCOUNT"
-            "GEMINI_API_KEY_PROD"
+            "CLAUDE_API_KEY_PROD"
             "API_TOKEN_PROD"
           )
           
@@ -80,8 +80,8 @@ jobs:
           fi
           
           # Verificar application secrets (opcional para primer deployment)
-          if [[ -z "${{ secrets.GEMINI_API_KEY_PROD }}" ]]; then
-            echo "⚠️ GEMINI_API_KEY_PROD no configurado - usando placeholder"
+          if [[ -z "${{ secrets.CLAUDE_API_KEY_PROD }}" ]]; then
+            echo "⚠️ CLAUDE_API_KEY_PROD no configurado - usando placeholder"
           fi
           if [[ -z "${{ secrets.API_TOKEN_PROD }}" ]]; then
             echo "⚠️ API_TOKEN_PROD no configurado - usando placeholder"
@@ -125,9 +125,9 @@ jobs:
           
       - name: 'Build imagen de producción'
         run: |
-          echo "🏗️ Building imagen para producción (simple test version)..."
+          echo "🏗️ Building imagen para producción (full Claude version)..."
           docker build \
-            --file Dockerfile.simple \
+            --file Dockerfile \
             --tag ${{ env.REGISTRY }}/${{ env.PROJECT_ID }}/${{ env.SERVICE_NAME }}:${{ needs.pre-deployment-checks.outputs.version }} \
             --tag ${{ env.REGISTRY }}/${{ env.PROJECT_ID }}/${{ env.SERVICE_NAME }}:latest \
             --build-arg VERSION=${{ needs.pre-deployment-checks.outputs.version }} \
@@ -145,13 +145,13 @@ jobs:
           echo "🚀 Desplegando a Cloud Run..."
           
           # Configurar variables de entorno
-          GEMINI_KEY="${{ secrets.GEMINI_API_KEY_PROD }}"
+          CLAUDE_KEY="${{ secrets.CLAUDE_API_KEY_PROD }}"
           API_TOKEN="${{ secrets.API_TOKEN_PROD }}"
           
           # Usar placeholders si los secrets no están configurados
-          if [[ -z "$GEMINI_KEY" ]]; then
-            GEMINI_KEY="your-gemini-api-key-here"
-            echo "⚠️ Usando placeholder para GEMINI_API_KEY"
+          if [[ -z "$CLAUDE_KEY" ]]; then
+            CLAUDE_KEY="your-claude-api-key-here"
+            echo "⚠️ Usando placeholder para CLAUDE_API_KEY"
           fi
           if [[ -z "$API_TOKEN" ]]; then
             API_TOKEN="your-api-token-here"  
@@ -171,7 +171,7 @@ jobs:
             --max-instances=10 \
             --min-instances=0 \
             --timeout=300 \
-            --set-env-vars="LOG_LEVEL=info,WORKERS=2,ENVIRONMENT=production,GEMINI_KEY=$GEMINI_KEY,AUTH_TOKEN=$API_TOKEN" \
+            --set-env-vars="LOG_LEVEL=info,WORKERS=2,ENVIRONMENT=production,CLAUDE_API_KEY=$CLAUDE_KEY,AUTH_TOKEN=$API_TOKEN" \
             --tag=${{ needs.pre-deployment-checks.outputs.version }} \
             --project=${{ env.PROJECT_ID }}
           
