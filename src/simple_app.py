@@ -128,27 +128,27 @@ async def classify_simple() -> Dict[str, Any]:
             
             # Simple test message
             test_response = await client.messages.create(
-                model="claude-3-5-sonnet-20241022",
+                model="claude-sonnet-4-20250514",
                 max_tokens=100,
                 messages=[{
                     "role": "user", 
-                    "content": "This is a test. Respond with: Claude Sonnet 4 phishing detection is working correctly."
+                    "content": "This is a test. Respond with: Advanced AI phishing detection is working correctly."
                 }]
             )
             
             return {
                 "classification": "working",
-                "message": "🎯 Claude Sonnet 4 successfully tested!",
+                "message": "🎯 Advanced AI successfully tested!",
                 "status": "API key working",
                 "api_key_status": "✅ Verified",
-                "claude_response": test_response.content[0].text,
+                "ai_response": test_response.content[0].text,
                 "test_time": int(time.time())
             }
             
         except Exception as e:
             return {
                 "classification": "error",
-                "message": "❌ Claude API test failed",
+                "message": "❌ AI API test failed",
                 "status": "API key configured but not working",
                 "api_key_status": "⚠️ Invalid or expired",
                 "error": str(e)[:200]
@@ -172,73 +172,94 @@ async def analyze_gmail_email(request: GmailAnalysisRequest) -> EmlAnalysisRespo
         from anthropic import AsyncAnthropic
         client = AsyncAnthropic(api_key=claude_api_key)
         
-        # Create analysis prompt
+        # Create humanized analysis prompt
         analysis_prompt = f"""
-Analiza este correo para indicadores de phishing:
+Eres un experto en ciberseguridad que ayuda a personas a identificar emails peligrosos. Analiza este correo de manera conversacional y humana.
 
-REMITENTE: {request.sender}
-ASUNTO: {request.subject}
+CORREO A ANALIZAR:
+De: {request.sender}
+Asunto: {request.subject}
+Contenido: {request.email_body[:1500]}
+Adjuntos: {len(request.attachments)}
 
-ENCABEZADOS:
-{request.email_headers[:1000]}
+Responde como si fueras un consultor de seguridad amigable:
+1. Explica en términos simples qué encontraste
+2. Da tu opinión profesional sobre si es confiable
+3. Usa ejemplos concretos de lo que viste
+4. Habla de manera natural, no técnica
 
-CONTENIDO:
-{request.email_body[:2000]}
-
-ADJUNTOS: {len(request.attachments)} archivos
-
-Proporciona análisis en español enfocándote en:
-1. Autenticidad del remitente
-2. Análisis del asunto
-3. Contenido del mensaje
-4. Evaluación de riesgo
-
-Termina con: "CLASIFICACIÓN FINAL: [SEGURO/SOSPECHOSO/MALICIOSO]"
+Importante: Termina SIEMPRE con "VEREDICTO: [SEGURO/SOSPECHOSO/MALICIOSO]"
 """
         
         response = await client.messages.create(
-            model="claude-3-5-sonnet-20241022",
-            max_tokens=500,
+            model="claude-sonnet-4-20250514",
+            max_tokens=600,
             messages=[{"role": "user", "content": analysis_prompt}]
         )
         
         analysis_text = response.content[0].text
         
-        # Extract classification from Claude's response
+        # Extract classification from humanized response
         analysis_lower = analysis_text.lower()
         
-        if "clasificación final: malicioso" in analysis_lower:
+        if "veredicto: malicioso" in analysis_lower:
             classification = "phishing"
             risk_score = 85
-        elif "clasificación final: sospechoso" in analysis_lower:
+            recommendations = [
+                "🚨 NO hagas clic en ningún enlace de este correo",
+                "🗑️ Elimina este mensaje inmediatamente",
+                "📞 Reporta este intento de fraude a tu empresa/banco"
+            ]
+        elif "veredicto: sospechoso" in analysis_lower:
             classification = "suspicious"
             risk_score = 60
-        elif "clasificación final: seguro" in analysis_lower:
+            recommendations = [
+                "🔍 Verifica la identidad del remitente por otro medio",
+                "⚠️ No proporciones información personal",
+                "📞 Contacta directamente a la organización si es importante"
+            ]
+        elif "veredicto: seguro" in analysis_lower:
             classification = "safe"
             risk_score = 15
+            recommendations = [
+                "✅ Este correo parece legítimo y seguro",
+                "👍 Puedes proceder con normalidad",
+                "🛡️ Mantente siempre alerta con futuros correos"
+            ]
         else:
-            # Fallback logic
-            if any(word in analysis_lower for word in ["es malicioso", "claramente fraude"]):
+            # Fallback logic with default recommendations
+            if any(word in analysis_lower for word in ["peligroso", "fraude", "estafa", "malicioso"]):
                 classification = "phishing"
                 risk_score = 80
-            elif any(word in analysis_lower for word in ["presenta riesgos", "recomiendo precaución"]):
+                recommendations = [
+                    "🚨 NO hagas clic en ningún enlace",
+                    "🗑️ Elimina este mensaje",
+                    "📞 Reporta este intento de fraude"
+                ]
+            elif any(word in analysis_lower for word in ["cuidado", "precaución", "sospechoso", "dudoso"]):
                 classification = "suspicious"
                 risk_score = 55
+                recommendations = [
+                    "🔍 Verifica el remitente",
+                    "⚠️ No proporciones información",
+                    "📞 Contacta directamente si es necesario"
+                ]
             else:
                 classification = "safe"
                 risk_score = 20
+                recommendations = [
+                    "✅ Correo aparentemente seguro",
+                    "👍 Procede con normalidad",
+                    "🛡️ Mantente alerta siempre"
+                ]
             
         return EmlAnalysisResponse(
             classification=classification,
             risk_score=risk_score,
-            analysis=analysis_text[:300],
-            recommendations=[
-                "Verificar remitente por canal oficial",
-                "No hacer clic en enlaces sospechosos",
-                "Reportar si es phishing confirmado"
-            ],
+            analysis=analysis_text[:400],
+            recommendations=recommendations,
             technical_details={
-                "claude_model": "claude-3-5-sonnet-20241022",
+                "ai_model": "advanced-security-ai",
                 "analysis_time": int(time.time()),
                 "sender": request.sender,
                 "attachments_count": len(request.attachments)
@@ -318,36 +339,28 @@ async def analyze_eml_file(file: UploadFile = File(...)) -> EmlAnalysisResponse:
         client = AsyncAnthropic(api_key=claude_api_key)
         
         analysis_prompt = f"""
-Analiza este correo electrónico para indicadores de phishing y proporciona una evaluación final clara:
+Eres un especialista en seguridad digital que ayuda a las personas a entender si sus correos son seguros. Analiza este email de forma clara y conversacional.
 
-REMITENTE: {sender}
-ASUNTO: {subject}
+EMAIL RECIBIDO:
+De: {sender}
+Asunto: {subject}
+Contenido: {body_text[:1200]}
+Archivos adjuntos: {attachment_count}
 
-ENCABEZADOS:
-{headers}
+Como un experto amigable, explica:
+1. Tu primera impresión sobre este correo
+2. Qué aspectos te llaman la atención (positivos o negativos)
+3. Si confiarías en este mensaje y por qué
+4. Consejo práctico para esta persona
 
-CONTENIDO:
-{body_text}
+Habla de manera natural y comprensible, evita términos muy técnicos.
 
-ADJUNTOS: {attachment_count} archivos
-
-Analiza estos aspectos en español:
-1. Autenticidad del remitente (DKIM, SPF, dominio)
-2. Análisis del asunto
-3. Contenido del mensaje
-4. Evaluación general de riesgo
-
-Al final, proporciona una CONCLUSIÓN CLARA usando exactamente una de estas palabras:
-- SEGURO: Si el correo es legítimo y no presenta riesgos
-- SOSPECHOSO: Si tiene algunos indicadores preocupantes pero no es claramente malicioso
-- MALICIOSO: Si es claramente phishing o fraude
-
-Termina tu respuesta con: "CLASIFICACIÓN FINAL: [SEGURO/SOSPECHOSO/MALICIOSO]"
+Termina SIEMPRE con: "VEREDICTO: [SEGURO/SOSPECHOSO/MALICIOSO]"
 """
         
         response = await client.messages.create(
-            model="claude-3-5-sonnet-20241022",
-            max_tokens=600,
+            model="claude-sonnet-4-20250514",
+            max_tokens=700,
             messages=[{"role": "user", "content": analysis_prompt}]
         )
         
