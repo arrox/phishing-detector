@@ -409,9 +409,10 @@ function getRiskDescription(score) {
 function formatAnalysisText(analysis) {
   // Formatear el texto humanizado para mejor legibilidad
   return analysis
-    .substring(0, 500)
+    .substring(0, 800)  // Aumentado de 500 a 800 caracteres
     .replace(/(\d+\.)/g, '\n$1')
     .replace(/(-)/g, '\n  •')
+    .replace(/\*\*(.*?)\*\*/g, '<b>$1</b>')  // Convertir **texto** a <b>texto</b>
     .trim();
 }
 
