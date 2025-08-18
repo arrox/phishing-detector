@@ -372,8 +372,8 @@ class URLAnalyzer:
                 age_days = (datetime.now() - creation_date).days
                 return age_days
 
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug(f"WHOIS check failed for {domain}: {e}")
 
         return None
 

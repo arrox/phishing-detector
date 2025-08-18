@@ -10,8 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.responses import Response
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from prometheus_client import (CONTENT_TYPE_LATEST, Counter, Histogram,
-                               generate_latest)
+from prometheus_client import CONTENT_TYPE_LATEST, Counter, Histogram, generate_latest
 
 from src.schema import ClassificationRequest, ClassificationResponse
 from src.service import PhishingDetectionService
@@ -308,7 +307,7 @@ async def rate_limit_middleware(request: Request, call_next):
 
 if __name__ == "__main__":
     # Configuration from environment variables
-    host = os.getenv("HOST", "0.0.0.0")
+    host = os.getenv("HOST", "127.0.0.1")
     port = int(os.getenv("PORT", "8000"))
     workers = int(os.getenv("WORKERS", "1"))
     log_level = os.getenv("LOG_LEVEL", "info").lower()
