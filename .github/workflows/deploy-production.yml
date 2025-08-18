@@ -158,7 +158,7 @@ jobs:
             echo "⚠️ Usando placeholder para API_TOKEN"
           fi
           
-          # Clear all env vars first, then set new ones
+          # Deploy with new image and set all environment variables in one command
           gcloud run deploy ${{ env.SERVICE_NAME }} \
             --image=${{ env.REGISTRY }}/${{ env.PROJECT_ID }}/${{ env.SERVICE_NAME }}:${{ needs.pre-deployment-checks.outputs.version }} \
             --platform=managed \
@@ -171,15 +171,11 @@ jobs:
             --max-instances=10 \
             --min-instances=0 \
             --timeout=300 \
-            --clear-env-vars \
+            --set-env-vars="LOG_LEVEL=info,WORKERS=2,ENVIRONMENT=production,GEMINI_API_KEY=$GEMINI_KEY,API_TOKEN=$API_TOKEN" \
             --tag=${{ needs.pre-deployment-checks.outputs.version }} \
             --project=${{ env.PROJECT_ID }}
           
-          # Then update with new environment variables
-          gcloud run services update ${{ env.SERVICE_NAME }} \
-            --region=${{ env.REGION }} \
-            --update-env-vars="LOG_LEVEL=info,WORKERS=2,ENVIRONMENT=production,GEMINI_API_KEY=$GEMINI_KEY,API_TOKEN=$API_TOKEN" \
-            --project=${{ env.PROJECT_ID }}
+          echo "✅ Deployment completado exitosamente"
             
       - name: 'Obtener URL de servicio'
         id: service-url
