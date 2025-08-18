@@ -9,9 +9,15 @@ from src.gemini_client import GeminiClient
 from src.header_analysis import HeaderAnalyzer
 from src.nlp_features import NLPAnalyzer
 from src.redaction import PIIRedactor
-from src.schema import (ClassificationRequest, ClassificationResponse,
-                        Evidence, GeminiPromptData, HeaderFindings,
-                        HeuristicFeatures, URLFinding)
+from src.schema import (
+    ClassificationRequest,
+    ClassificationResponse,
+    Evidence,
+    GeminiPromptData,
+    HeaderFindings,
+    HeuristicFeatures,
+    URLFinding,
+)
 from src.url_analysis import URLAnalyzer
 
 # Setup structured logging

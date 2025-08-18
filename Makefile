@@ -158,6 +158,7 @@ dev-setup: ## Configurar entorno de desarrollo
 	@echo -e "$(BLUE)🛠️ Configurando entorno de desarrollo...$(NC)"
 	pip install -e .
 	pip install -e ".[dev]"
+	pip install black isort flake8 mypy pytest-cov bandit
 	pre-commit install
 	@echo -e "$(GREEN)✅ Entorno de desarrollo configurado$(NC)"
 
@@ -169,6 +170,38 @@ dev-run: ## Ejecutar aplicación localmente
 	@echo -e "$(BLUE)🏃 Ejecutando aplicación localmente...$(NC)"
 	@echo -e "$(YELLOW)Asegúrate de tener GEMINI_API_KEY y API_TOKEN en .env$(NC)"
 	uvicorn src.app:app --reload --host 0.0.0.0 --port 8000
+
+# Comandos de formateo y calidad de código
+format: ## Formatear código con Black e isort
+	@echo -e "$(BLUE)🔧 Formateando código con Black...$(NC)"
+	python -m black src/ tests/
+	@echo -e "$(BLUE)🔧 Ordenando imports con isort...$(NC)"
+	python -m isort src/ tests/
+	@echo -e "$(GREEN)✅ Formateo completado$(NC)"
+
+format-check: ## Verificar formato sin modificar archivos (CI)
+	@echo -e "$(BLUE)🔍 Verificando formato con Black...$(NC)"
+	python -m black --check --diff src/ tests/
+	@echo -e "$(BLUE)🔍 Verificando imports con isort...$(NC)"
+	python -m isort --check-only --diff src/ tests/
+	@echo -e "$(GREEN)✅ Verificación de formato completada$(NC)"
+
+lint: ## Ejecutar linting con flake8 y mypy
+	@echo -e "$(BLUE)🔍 Ejecutando flake8...$(NC)"
+	python -m flake8 src/ tests/ --max-line-length=88 --extend-ignore=E203,W503
+	@echo -e "$(BLUE)🔍 Ejecutando mypy...$(NC)"
+	python -m mypy src/ --ignore-missing-imports --strict-optional
+	@echo -e "$(GREEN)✅ Linting completado$(NC)"
+
+security-scan: ## Análisis de seguridad con bandit
+	@echo -e "$(BLUE)🛡️ Ejecutando análisis de seguridad...$(NC)"
+	python -m bandit -r src/ -f txt
+	@echo -e "$(GREEN)✅ Análisis de seguridad completado$(NC)"
+
+ci-check: format-check lint test-local security-scan ## Ejecutar todas las verificaciones de CI localmente
+	@echo -e "$(GREEN)🎉 Todas las verificaciones de CI pasaron exitosamente$(NC)"
+
+fix: format ## Alias para format (arreglar formateo automáticamente)
 
 # Información del proyecto
 info: ## Mostrar información del proyecto
