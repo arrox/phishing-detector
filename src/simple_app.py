@@ -47,7 +47,7 @@ async def root() -> Dict[str, Any]:
         "status": "🚀 RUNNING SUCCESSFULLY",
         "version": "1.0.0-test",
         "environment": os.getenv("ENVIRONMENT", "not-set"),
-        "message": "¡Deployment a producción exitoso! 🎉",
+        "message": "¡Deployment a producción exitoso con Claude API! 🎉",
         "docs": "/docs",
         "health": "/health", 
         "ready": "/ready",
