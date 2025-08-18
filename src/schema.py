@@ -1,6 +1,7 @@
-from typing import List, Dict, Any, Optional, Literal
-from pydantic import BaseModel, Field, validator
 import re
+from typing import Any, Dict, List, Literal, Optional
+
+from pydantic import BaseModel, Field, validator
 
 
 class AttachmentMeta(BaseModel):

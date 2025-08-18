@@ -1,7 +1,7 @@
-import re
 import hashlib
-from typing import List, Tuple
 import logging
+import re
+from typing import List, Tuple
 
 logger = logging.getLogger(__name__)
 

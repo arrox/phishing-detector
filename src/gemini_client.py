@@ -1,11 +1,12 @@
 import asyncio
 import json
-import time
-import random
-from typing import Dict, Any, Optional
 import logging
+import random
+import time
+from typing import Any, Dict, Optional
+
 import google.generativeai as genai
-from google.generativeai.types import HarmCategory, HarmBlockThreshold
+from google.generativeai.types import HarmBlockThreshold, HarmCategory
 
 from src.schema import ClassificationResponse, GeminiPromptData
 

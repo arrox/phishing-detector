@@ -1,8 +1,10 @@
-import pytest
 import asyncio
-from unittest.mock import Mock, AsyncMock
+from unittest.mock import AsyncMock, Mock
+
+import pytest
+
+from src.schema import AccountContext, AttachmentMeta, ClassificationRequest
 from src.service import PhishingDetectionService
-from src.schema import ClassificationRequest, AccountContext, AttachmentMeta
 
 
 @pytest.fixture(scope="session")

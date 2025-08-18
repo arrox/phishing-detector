@@ -1,18 +1,20 @@
 import os
 import time
-from typing import Dict, Any
 from contextlib import asynccontextmanager
+from typing import Any, Dict
+
+import structlog
 import uvicorn
-from fastapi import FastAPI, HTTPException, Depends, Request, status
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from fastapi import Depends, FastAPI, HTTPException, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
-import structlog
-from prometheus_client import Counter, Histogram, generate_latest, CONTENT_TYPE_LATEST
 from fastapi.responses import Response
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from prometheus_client import (CONTENT_TYPE_LATEST, Counter, Histogram,
+                               generate_latest)
 
-from src.service import PhishingDetectionService
 from src.schema import ClassificationRequest, ClassificationResponse
+from src.service import PhishingDetectionService
 
 # Setup structured logging
 logger = structlog.get_logger(__name__)

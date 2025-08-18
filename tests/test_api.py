@@ -1,7 +1,8 @@
+import os
+from unittest.mock import AsyncMock, Mock, patch
+
 import pytest
 from fastapi.testclient import TestClient
-from unittest.mock import Mock, AsyncMock, patch
-import os
 
 # Set environment variables before importing app
 os.environ["GEMINI_API_KEY"] = "test-api-key"

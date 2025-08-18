@@ -1,8 +1,8 @@
-import re
-from typing import List, Dict, Any, Tuple
-from dataclasses import dataclass
 import logging
+import re
 from collections import Counter
+from dataclasses import dataclass
+from typing import Any, Dict, List, Tuple
 
 logger = logging.getLogger(__name__)
 

@@ -1,9 +1,9 @@
-import re
 import email
 import email.utils
-from typing import Dict, List, Tuple, Optional
-from dataclasses import dataclass
 import logging
+import re
+from dataclasses import dataclass
+from typing import Dict, List, Optional, Tuple
 
 from src.schema import HeaderFindings
 

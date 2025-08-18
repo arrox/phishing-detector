@@ -1,23 +1,18 @@
 import asyncio
-import time
 import logging
-from typing import Dict, Any, List
+import time
+from typing import Any, Dict, List
+
 import structlog
 
-from src.schema import (
-    ClassificationRequest,
-    ClassificationResponse,
-    GeminiPromptData,
-    HeuristicFeatures,
-    Evidence,
-    HeaderFindings,
-    URLFinding,
-)
-from src.redaction import PIIRedactor
-from src.header_analysis import HeaderAnalyzer
-from src.url_analysis import URLAnalyzer
-from src.nlp_features import NLPAnalyzer
 from src.gemini_client import GeminiClient
+from src.header_analysis import HeaderAnalyzer
+from src.nlp_features import NLPAnalyzer
+from src.redaction import PIIRedactor
+from src.schema import (ClassificationRequest, ClassificationResponse,
+                        Evidence, GeminiPromptData, HeaderFindings,
+                        HeuristicFeatures, URLFinding)
+from src.url_analysis import URLAnalyzer
 
 # Setup structured logging
 structlog.configure(

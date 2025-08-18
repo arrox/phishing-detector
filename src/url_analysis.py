@@ -1,16 +1,17 @@
-import re
 import asyncio
-import time
-from typing import List, Dict, Any, Optional, Tuple
-from urllib.parse import urlparse, urljoin
-from dataclasses import dataclass
 import logging
-import httpx
+import re
+import time
+from dataclasses import dataclass
+from typing import Any, Dict, List, Optional, Tuple
+from urllib.parse import urljoin, urlparse
+
 import dns.resolver
-import whois
+import httpx
 import Levenshtein
-from bs4 import BeautifulSoup
 import publicsuffix2
+import whois
+from bs4 import BeautifulSoup
 
 from src.schema import URLFinding
 

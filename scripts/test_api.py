@@ -4,10 +4,11 @@ Script para probar el API de detección de phishing con casos de ejemplo.
 """
 
 import json
-import requests
-import time
 import sys
-from typing import Dict, Any
+import time
+from typing import Any, Dict
+
+import requests
 
 # Configuración
 API_ENDPOINT = "http://localhost:8000/classify"
