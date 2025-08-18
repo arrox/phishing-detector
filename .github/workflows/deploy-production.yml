@@ -50,7 +50,7 @@ jobs:
       - name: 'Generar versión de producción'
         id: version
         run: |
-          VERSION=$(date +%Y%m%d)-${GITHUB_SHA:0:8}
+          VERSION=v$(date +%Y%m%d)-${GITHUB_SHA:0:8}
           echo "version=$VERSION" >> $GITHUB_OUTPUT
           echo "🏷️ Versión de producción: $VERSION"
           

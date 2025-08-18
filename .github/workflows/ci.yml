@@ -413,7 +413,7 @@ jobs:
       - name: 'Generar versión'
         id: version
         run: |
-          VERSION=$(date +%Y%m%d)-${GITHUB_SHA:0:8}
+          VERSION=v$(date +%Y%m%d)-${GITHUB_SHA:0:8}
           echo "version=$VERSION" >> $GITHUB_OUTPUT
           echo "🏷️  Versión generada: $VERSION"
 
