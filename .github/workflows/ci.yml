@@ -249,6 +249,7 @@ jobs:
           # Variables de test (mock)
           GEMINI_API_KEY: test_key_12345
           API_TOKEN: test_token_67890
+          PYTHONPATH: .
         run: |
           pytest tests/ \
             --cov=src \
