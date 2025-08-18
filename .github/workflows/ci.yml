@@ -403,11 +403,11 @@ jobs:
         id: determine-env
         run: |
           if [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
+            echo "environment=production" >> $GITHUB_OUTPUT
+            echo "🚀 Preparando deployment a PRODUCCIÓN"
+          elif [[ "${{ github.ref }}" == "refs/heads/develop" ]]; then
             echo "environment=staging" >> $GITHUB_OUTPUT
             echo "📦 Preparando deployment a STAGING"
-          elif [[ "${{ github.ref }}" == "refs/heads/develop" ]]; then
-            echo "environment=dev" >> $GITHUB_OUTPUT
-            echo "🔧 Preparando deployment a DEV"
           fi
 
       - name: 'Generar versión'

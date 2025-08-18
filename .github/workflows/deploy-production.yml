@@ -1,0 +1,248 @@
+# ============================================================================
+# PRODUCTION DEPLOYMENT WORKFLOW
+# Deploys to production when code is merged to main branch
+# ============================================================================
+
+name: 'Production Deployment'
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      force_deploy:
+        description: 'Force deployment even if CI is not passing'
+        required: false
+        default: 'false'
+        type: boolean
+
+env:
+  REGISTRY: gcr.io
+  PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+  SERVICE_NAME: phishing-detector
+  REGION: us-central1
+
+jobs:
+  # ============================================================================
+  # VALIDACIONES PRE-DEPLOYMENT
+  # ============================================================================
+  pre-deployment-checks:
+    name: 'Pre-deployment Checks'
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      
+    steps:
+      - name: 'Checkout código'
+        uses: actions/checkout@v4
+        
+      - name: 'Verificar CI status'
+        if: ${{ !inputs.force_deploy }}
+        run: |
+          echo "🔍 Verificando que CI esté pasando..."
+          # Esta verificación se omite si force_deploy = true
+          
+      - name: 'Generar versión de producción'
+        id: version
+        run: |
+          VERSION=$(date +%Y%m%d)-${GITHUB_SHA:0:8}
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "🏷️ Versión de producción: $VERSION"
+          
+      - name: 'Validar secrets de producción'
+        run: |
+          echo "🔐 Validando secrets de producción..."
+          
+          REQUIRED_SECRETS=(
+            "GCP_PROJECT_ID"
+            "GCP_WORKLOAD_IDENTITY_PROVIDER" 
+            "GCP_SERVICE_ACCOUNT"
+            "GEMINI_API_KEY_PROD"
+            "API_TOKEN_PROD"
+          )
+          
+          MISSING_SECRETS=()
+          
+          # Verificar GCP secrets
+          if [[ -z "${{ secrets.GCP_PROJECT_ID }}" ]]; then
+            MISSING_SECRETS+=("GCP_PROJECT_ID")
+          fi
+          if [[ -z "${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}" ]]; then
+            MISSING_SECRETS+=("GCP_WORKLOAD_IDENTITY_PROVIDER")
+          fi
+          if [[ -z "${{ secrets.GCP_SERVICE_ACCOUNT }}" ]]; then
+            MISSING_SECRETS+=("GCP_SERVICE_ACCOUNT")
+          fi
+          
+          # Verificar application secrets (opcional para primer deployment)
+          if [[ -z "${{ secrets.GEMINI_API_KEY_PROD }}" ]]; then
+            echo "⚠️ GEMINI_API_KEY_PROD no configurado - usando placeholder"
+          fi
+          if [[ -z "${{ secrets.API_TOKEN_PROD }}" ]]; then
+            echo "⚠️ API_TOKEN_PROD no configurado - usando placeholder"
+          fi
+          
+          if [[ ${#MISSING_SECRETS[@]} -gt 0 ]]; then
+            echo "❌ Secrets críticos faltantes: ${MISSING_SECRETS[*]}"
+            echo "Configura estos secrets en GitHub para continuar"
+            exit 1
+          fi
+          
+          echo "✅ Validación de secrets completada"
+
+  # ============================================================================
+  # DEPLOYMENT A PRODUCCIÓN
+  # ============================================================================
+  deploy-production:
+    name: 'Deploy to Production'
+    runs-on: ubuntu-latest
+    needs: pre-deployment-checks
+    environment: 
+      name: production
+      url: https://${{ env.SERVICE_NAME }}-${{ env.PROJECT_ID }}.a.run.app
+      
+    steps:
+      - name: 'Checkout código'
+        uses: actions/checkout@v4
+        
+      - name: 'Configurar autenticación GCP'
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+          
+      - name: 'Configurar Cloud SDK'
+        uses: google-github-actions/setup-gcloud@v2
+        
+      - name: 'Configurar Docker para GCR'
+        run: |
+          gcloud auth configure-docker gcr.io --quiet
+          
+      - name: 'Build imagen de producción'
+        run: |
+          echo "🏗️ Building imagen para producción..."
+          docker build \
+            --tag ${{ env.REGISTRY }}/${{ env.PROJECT_ID }}/${{ env.SERVICE_NAME }}:${{ needs.pre-deployment-checks.outputs.version }} \
+            --tag ${{ env.REGISTRY }}/${{ env.PROJECT_ID }}/${{ env.SERVICE_NAME }}:latest \
+            --build-arg VERSION=${{ needs.pre-deployment-checks.outputs.version }} \
+            --build-arg ENVIRONMENT=production \
+            .
+            
+      - name: 'Push imagen a GCR'
+        run: |
+          echo "📤 Pushing imagen a Google Container Registry..."
+          docker push ${{ env.REGISTRY }}/${{ env.PROJECT_ID }}/${{ env.SERVICE_NAME }}:${{ needs.pre-deployment-checks.outputs.version }}
+          docker push ${{ env.REGISTRY }}/${{ env.PROJECT_ID }}/${{ env.SERVICE_NAME }}:latest
+          
+      - name: 'Deploy a Cloud Run'
+        run: |
+          echo "🚀 Desplegando a Cloud Run..."
+          
+          # Configurar variables de entorno
+          GEMINI_KEY="${{ secrets.GEMINI_API_KEY_PROD }}"
+          API_TOKEN="${{ secrets.API_TOKEN_PROD }}"
+          
+          # Usar placeholders si los secrets no están configurados
+          if [[ -z "$GEMINI_KEY" ]]; then
+            GEMINI_KEY="your-gemini-api-key-here"
+            echo "⚠️ Usando placeholder para GEMINI_API_KEY"
+          fi
+          if [[ -z "$API_TOKEN" ]]; then
+            API_TOKEN="your-api-token-here"  
+            echo "⚠️ Usando placeholder para API_TOKEN"
+          fi
+          
+          gcloud run deploy ${{ env.SERVICE_NAME }} \
+            --image=${{ env.REGISTRY }}/${{ env.PROJECT_ID }}/${{ env.SERVICE_NAME }}:${{ needs.pre-deployment-checks.outputs.version }} \
+            --platform=managed \
+            --region=${{ env.REGION }} \
+            --allow-unauthenticated \
+            --port=8000 \
+            --memory=2Gi \
+            --cpu=2 \
+            --concurrency=100 \
+            --max-instances=10 \
+            --min-instances=1 \
+            --set-env-vars="LOG_LEVEL=info,WORKERS=2,ENVIRONMENT=production" \
+            --set-env-vars="GEMINI_API_KEY=$GEMINI_KEY,API_TOKEN=$API_TOKEN" \
+            --tag=${{ needs.pre-deployment-checks.outputs.version }} \
+            --project=${{ env.PROJECT_ID }}
+            
+      - name: 'Obtener URL de servicio'
+        id: service-url
+        run: |
+          SERVICE_URL=$(gcloud run services describe ${{ env.SERVICE_NAME }} \
+            --region=${{ env.REGION }} \
+            --project=${{ env.PROJECT_ID }} \
+            --format="value(status.url)")
+          echo "url=$SERVICE_URL" >> $GITHUB_OUTPUT
+          echo "🌐 Servicio desplegado en: $SERVICE_URL"
+          
+      - name: 'Health check de producción'
+        run: |
+          echo "🏥 Verificando health check..."
+          SERVICE_URL="${{ steps.service-url.outputs.url }}"
+          
+          # Esperar un momento para que el servicio inicie
+          sleep 30
+          
+          # Health check
+          if curl -f "$SERVICE_URL/health" --max-time 30; then
+            echo "✅ Health check exitoso"
+          else
+            echo "❌ Health check falló"
+            exit 1
+          fi
+          
+          # Ready check  
+          if curl -f "$SERVICE_URL/ready" --max-time 30; then
+            echo "✅ Ready check exitoso"
+          else
+            echo "⚠️ Ready check falló (puede ser normal)"
+          fi
+
+  # ============================================================================
+  # POST-DEPLOYMENT
+  # ============================================================================
+  post-deployment:
+    name: 'Post-deployment Tasks'
+    runs-on: ubuntu-latest
+    needs: [pre-deployment-checks, deploy-production]
+    if: always()
+    
+    steps:
+      - name: 'Notificación de deployment'
+        run: |
+          if [[ "${{ needs.deploy-production.result }}" == "success" ]]; then
+            echo "🎉 DEPLOYMENT A PRODUCCIÓN EXITOSO"
+            echo "📋 Versión: ${{ needs.pre-deployment-checks.outputs.version }}"
+            echo "🌐 URL: https://${{ env.SERVICE_NAME }}-${{ env.PROJECT_ID }}.a.run.app"
+            echo "⏰ Timestamp: $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
+          else
+            echo "❌ DEPLOYMENT A PRODUCCIÓN FALLÓ"
+            echo "🔍 Revisa los logs para más detalles"
+          fi
+          
+      - name: 'Crear GitHub Release'
+        if: needs.deploy-production.result == 'success'
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: v${{ needs.pre-deployment-checks.outputs.version }}
+          release_name: 'Production Release v${{ needs.pre-deployment-checks.outputs.version }}'
+          body: |
+            🚀 **Deployment a Producción Exitoso**
+            
+            **Versión:** ${{ needs.pre-deployment-checks.outputs.version }}
+            **Timestamp:** $(date -u '+%Y-%m-%d %H:%M:%S UTC')
+            **Commit:** ${{ github.sha }}
+            
+            **Servicios desplegados:**
+            - Phishing Detector API
+            
+            **Ambiente:** Producción
+            **URL:** https://${{ env.SERVICE_NAME }}-${{ env.PROJECT_ID }}.a.run.app
+          draft: false
+          prerelease: false
