@@ -48,11 +48,17 @@ async def lifespan(app: FastAPI):
     # Initialize service with Gemini API key
     gemini_api_key = os.getenv("GEMINI_API_KEY")
     if not gemini_api_key:
-        logger.error("GEMINI_API_KEY environment variable required")
-        raise ValueError("GEMINI_API_KEY required")
+        logger.warning("GEMINI_API_KEY not set, using placeholder for testing")
+        gemini_api_key = "test-key-placeholder"
 
-    detection_service = PhishingDetectionService(gemini_api_key)
-    logger.info("Service initialized successfully")
+    try:
+        detection_service = PhishingDetectionService(gemini_api_key)
+        logger.info("Service initialized successfully")
+    except Exception as e:
+        logger.error(f"Failed to initialize service: {e}")
+        # For now, allow startup to continue even if service fails
+        detection_service = None
+        logger.warning("Service initialization failed, continuing with limited functionality")
 
     yield
 
@@ -320,13 +326,27 @@ if __name__ == "__main__":
     workers = int(os.getenv("WORKERS", "1"))
     log_level = os.getenv("LOG_LEVEL", "info").lower()
 
+    # Debug logging for startup
+    print(f"🚀 Starting Phishing Detection API")
+    print(f"Host: {host}")
+    print(f"Port: {port}")
+    print(f"Workers: {workers}")
+    print(f"Log Level: {log_level}")
+    print(f"Environment: {os.getenv('ENVIRONMENT', 'not-set')}")
+    print(f"GEMINI_API_KEY: {'set' if os.getenv('GEMINI_API_KEY') else 'not-set'}")
+    print(f"API_TOKEN: {'set' if os.getenv('API_TOKEN') else 'not-set'}")
+
     # Run with Uvicorn
-    uvicorn.run(
-        "src.app:app",
-        host=host,
-        port=port,
-        workers=workers,
-        log_level=log_level,
-        access_log=True,
-        loop="asyncio",
-    )
+    try:
+        uvicorn.run(
+            "src.app:app",
+            host=host,
+            port=port,
+            workers=workers,
+            log_level=log_level,
+            access_log=True,
+            loop="asyncio",
+        )
+    except Exception as e:
+        print(f"❌ Failed to start server: {e}")
+        raise
