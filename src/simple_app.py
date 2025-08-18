@@ -174,24 +174,26 @@ async def analyze_gmail_email(request: GmailAnalysisRequest) -> EmlAnalysisRespo
         
         # Create analysis prompt
         analysis_prompt = f"""
-Analyze this email for phishing indicators:
+Analiza este correo para indicadores de phishing:
 
-SENDER: {request.sender}
-SUBJECT: {request.subject}
+REMITENTE: {request.sender}
+ASUNTO: {request.subject}
 
-HEADERS:
+ENCABEZADOS:
 {request.email_headers[:1000]}
 
-BODY:
+CONTENIDO:
 {request.email_body[:2000]}
 
-ATTACHMENTS: {len(request.attachments)} files
+ADJUNTOS: {len(request.attachments)} archivos
 
-Provide a JSON response with:
-1. classification: "phishing", "suspicious", or "safe"
-2. risk_score: 0-100
-3. analysis: Brief explanation in Spanish
-4. top_risks: Array of main risks found
+Proporciona análisis en español enfocándote en:
+1. Autenticidad del remitente
+2. Análisis del asunto
+3. Contenido del mensaje
+4. Evaluación de riesgo
+
+Termina con: "CLASIFICACIÓN FINAL: [SEGURO/SOSPECHOSO/MALICIOSO]"
 """
         
         response = await client.messages.create(
@@ -202,16 +204,29 @@ Provide a JSON response with:
         
         analysis_text = response.content[0].text
         
-        # Simple parsing (in production, use structured output)
-        if "phishing" in analysis_text.lower():
+        # Extract classification from Claude's response
+        analysis_lower = analysis_text.lower()
+        
+        if "clasificación final: malicioso" in analysis_lower:
             classification = "phishing"
             risk_score = 85
-        elif "suspicious" in analysis_text.lower() or "sospech" in analysis_text.lower():
+        elif "clasificación final: sospechoso" in analysis_lower:
             classification = "suspicious"
             risk_score = 60
-        else:
+        elif "clasificación final: seguro" in analysis_lower:
             classification = "safe"
             risk_score = 15
+        else:
+            # Fallback logic
+            if any(word in analysis_lower for word in ["es malicioso", "claramente fraude"]):
+                classification = "phishing"
+                risk_score = 80
+            elif any(word in analysis_lower for word in ["presenta riesgos", "recomiendo precaución"]):
+                classification = "suspicious"
+                risk_score = 55
+            else:
+                classification = "safe"
+                risk_score = 20
             
         return EmlAnalysisResponse(
             classification=classification,
@@ -303,24 +318,31 @@ async def analyze_eml_file(file: UploadFile = File(...)) -> EmlAnalysisResponse:
         client = AsyncAnthropic(api_key=claude_api_key)
         
         analysis_prompt = f"""
-Analyze this email file for phishing indicators:
+Analiza este correo electrónico para indicadores de phishing y proporciona una evaluación final clara:
 
-SENDER: {sender}
-SUBJECT: {subject}
+REMITENTE: {sender}
+ASUNTO: {subject}
 
-HEADERS:
+ENCABEZADOS:
 {headers}
 
-BODY:
+CONTENIDO:
 {body_text}
 
-ATTACHMENTS: {attachment_count} files
+ADJUNTOS: {attachment_count} archivos
 
-Provide analysis in Spanish focusing on:
-1. Sender authenticity
-2. Subject line analysis  
-3. Content analysis
-4. Overall risk assessment
+Analiza estos aspectos en español:
+1. Autenticidad del remitente (DKIM, SPF, dominio)
+2. Análisis del asunto
+3. Contenido del mensaje
+4. Evaluación general de riesgo
+
+Al final, proporciona una CONCLUSIÓN CLARA usando exactamente una de estas palabras:
+- SEGURO: Si el correo es legítimo y no presenta riesgos
+- SOSPECHOSO: Si tiene algunos indicadores preocupantes pero no es claramente malicioso
+- MALICIOSO: Si es claramente phishing o fraude
+
+Termina tu respuesta con: "CLASIFICACIÓN FINAL: [SEGURO/SOSPECHOSO/MALICIOSO]"
 """
         
         response = await client.messages.create(
@@ -331,17 +353,34 @@ Provide analysis in Spanish focusing on:
         
         analysis_text = response.content[0].text
         
-        # Determine classification based on analysis
+        # Extract classification from Claude's final conclusion
         analysis_lower = analysis_text.lower()
-        if any(word in analysis_lower for word in ["phishing", "malicioso", "fraude", "estafa"]):
+        
+        # Look for final classification
+        if "clasificación final: malicioso" in analysis_lower:
             classification = "phishing"
-            risk_score = 80
-        elif any(word in analysis_lower for word in ["sospechoso", "dudoso", "precaución", "cuidado"]):
-            classification = "suspicious" 
-            risk_score = 55
-        else:
+            risk_score = 85
+        elif "clasificación final: sospechoso" in analysis_lower:
+            classification = "suspicious"
+            risk_score = 60
+        elif "clasificación final: seguro" in analysis_lower:
             classification = "safe"
-            risk_score = 20
+            risk_score = 15
+        else:
+            # Fallback analysis if Claude doesn't follow format
+            if any(word in analysis_lower for word in ["es malicioso", "claramente phishing", "definitivamente fraude"]):
+                classification = "phishing"
+                risk_score = 80
+            elif any(word in analysis_lower for word in ["presenta riesgos", "indicadores preocupantes", "recomiendo precaución"]):
+                classification = "suspicious"
+                risk_score = 55
+            elif any(word in analysis_lower for word in ["es legítimo", "no presenta riesgos", "correo seguro"]):
+                classification = "safe"
+                risk_score = 20
+            else:
+                # Conservative default
+                classification = "suspicious"
+                risk_score = 50
             
         return EmlAnalysisResponse(
             classification=classification,
