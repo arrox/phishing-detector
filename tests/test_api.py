@@ -1,5 +1,5 @@
 import os
-from unittest.mock import AsyncMock, Mock, patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 from fastapi.testclient import TestClient
@@ -8,8 +8,8 @@ from fastapi.testclient import TestClient
 os.environ["GEMINI_API_KEY"] = "test-api-key"
 os.environ["API_TOKEN"] = "test-token"
 
-from src.app import app
-from src.schema import ClassificationResponse, Evidence, HeaderFindings
+from src.app import app  # noqa: E402
+from src.schema import ClassificationResponse, Evidence, HeaderFindings  # noqa: E402
 
 
 @pytest.fixture

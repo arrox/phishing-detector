@@ -119,10 +119,10 @@ jobs:
       - name: 'Análisis SAST con Bandit'
         run: |
           pip install bandit[toml]
-          bandit -r src/ -f json -o bandit-report.json || true
-          bandit -r src/ -f txt
+          bandit -r src/ -c .bandit -f json -o bandit-report.json || true
+          bandit -r src/ -c .bandit -f txt
           # Verificar severidad crítica/alta
-          if bandit -r src/ --severity-level medium --exit-zero; then
+          if bandit -r src/ -c .bandit --severity-level medium --exit-zero; then
             echo "✅ No se encontraron vulnerabilidades críticas"
           else
             echo "❌ Se encontraron vulnerabilidades de seguridad"

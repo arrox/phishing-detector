@@ -1,5 +1,3 @@
-import pytest
-
 from src.header_analysis import HeaderAnalyzer
 from src.schema import HeaderFindings
 

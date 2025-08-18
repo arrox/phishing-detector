@@ -47,7 +47,8 @@ Authentication-Results: mx.example.com;
         raw_html="""<html><body>
 <h1>PayPal Security Alert</h1>
 <p>Your account has been suspended due to suspicious activity.</p>
-<p>Click <a href="http://payp4l-security.com/verify">here</a> to verify your account immediately.</p>
+<p>Click <a href="http://payp4l-security.com/verify">here</a> to verify your
+account immediately.</p>
 <p>You have 24 hours to verify or your account will be permanently closed.</p>
 </body></html>""",
         text_body="""PayPal Security Alert
@@ -151,7 +152,8 @@ def sample_attachment_request():
 To: user@example.com
 Subject: Security Update Required
 """,
-        raw_html="<html><body><p>Please install the attached security update.</p></body></html>",
+        raw_html="<html><body><p>Please install the attached security "
+        "update.</p></body></html>",
         text_body="Please install the attached security update.",
         attachments_meta=[
             AttachmentMeta(

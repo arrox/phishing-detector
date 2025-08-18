@@ -1,9 +1,8 @@
-from unittest.mock import AsyncMock, Mock, patch
+from unittest.mock import patch
 
 import pytest
 
 from src.schema import ClassificationResponse, Evidence, HeaderFindings
-from src.service import PhishingDetectionService
 
 
 class TestPhishingDetectionService:
