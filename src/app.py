@@ -315,7 +315,7 @@ async def rate_limit_middleware(request: Request, call_next):
 
 if __name__ == "__main__":
     # Configuration from environment variables
-    host = os.getenv("HOST", "127.0.0.1")
+    host = os.getenv("HOST", "0.0.0.0")  # Cloud Run requires 0.0.0.0
     port = int(os.getenv("PORT", "8000"))
     workers = int(os.getenv("WORKERS", "1"))
     log_level = os.getenv("LOG_LEVEL", "info").lower()
