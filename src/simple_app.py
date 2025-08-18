@@ -3,8 +3,6 @@ Simple FastAPI app for testing Cloud Run deployment
 """
 import os
 import time
-import email
-import email.policy
 from typing import Dict, Any, List, Optional
 from fastapi import FastAPI, File, UploadFile, HTTPException
 from pydantic import BaseModel
@@ -259,36 +257,37 @@ async def analyze_eml_file(file: UploadFile = File(...)) -> EmlAnalysisResponse:
         )
     
     try:
-        # Read and parse EML file
+        # Read EML file content as text
         content = await file.read()
         
         try:
-            # Parse email
-            msg = email.message_from_bytes(content, policy=email.policy.default)
+            # Simple text parsing of EML content
+            content_str = content.decode('utf-8', errors='ignore')
             
-            # Extract components
-            sender = msg.get('From', 'Unknown')
-            subject = msg.get('Subject', 'No Subject')
+            # Extract basic components with simple string parsing
+            lines = content_str.split('\n')
             
-            # Get headers
-            headers = str(msg)[:2000]
-            
-            # Get body
+            sender = "Unknown"
+            subject = "No Subject"
+            headers = ""
             body_text = ""
-            if msg.is_multipart():
-                for part in msg.walk():
-                    if part.get_content_type() == "text/plain":
-                        body_text = part.get_content()[:2000]
-                        break
-            else:
-                body_text = msg.get_content()[:2000]
+            in_body = False
             
-            # Count attachments
-            attachment_count = 0
-            if msg.is_multipart():
-                for part in msg.walk():
-                    if part.get_content_disposition() == 'attachment':
-                        attachment_count += 1
+            for i, line in enumerate(lines[:200]):  # Limit parsing to first 200 lines
+                if line.startswith('From:'):
+                    sender = line[5:].strip()[:100]
+                elif line.startswith('Subject:'):
+                    subject = line[8:].strip()[:100]
+                elif not in_body and line.strip() == '':
+                    in_body = True
+                    headers = '\n'.join(lines[:i])[:2000]
+                elif in_body:
+                    body_text += line + '\n'
+                    if len(body_text) > 2000:
+                        break
+            
+            # Simple attachment detection
+            attachment_count = content_str.lower().count('content-disposition: attachment')
                         
         except Exception as parse_error:
             return EmlAnalysisResponse(
