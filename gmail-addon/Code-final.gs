@@ -13,7 +13,8 @@ const CONFIG = {
 // Colores y estilos premium
 const COLORS = {
   phishing: '#dc2626',      // Rojo intenso
-  suspicious: '#f59e0b',    // Ámbar vibrante  
+  suspicious: '#f59e0b',    // Ámbar vibrante
+  spam: '#9333ea',          // Púrpura para spam
   safe: '#10b981',          // Verde esmeralda
   neutral: '#6b7280'        // Gris neutro
 };
@@ -23,6 +24,7 @@ const ICONS = {
   // Iconos para cada estado
   phishing: 'https://cdn-icons-png.flaticon.com/512/594/594864.png',      // Escudo rojo con X
   suspicious: 'https://cdn-icons-png.flaticon.com/512/1828/1828395.png', // Escudo amarillo con !
+  spam: 'https://cdn-icons-png.flaticon.com/512/3064/3064635.png',       // Email púrpura con X
   safe: 'https://cdn-icons-png.flaticon.com/512/4621/4621636.png',       // Escudo verde con ✓
   
   // Iconos generales
@@ -35,6 +37,7 @@ const ICONS = {
 const EMOJIS = {
   phishing: '🚨',
   suspicious: '⚠️',
+  spam: '📧',
   safe: '✅',
   brain: '🧠',
   shield: '🛡️',
@@ -367,6 +370,8 @@ function mapRiskLevel(classification) {
     case 'suspicious':
     case 'sospechoso':
       return 'suspicious';
+    case 'spam':
+      return 'spam';
     case 'safe':
     case 'seguro':
       return 'safe';
@@ -388,6 +393,12 @@ function getRiskData(riskLevel) {
       emoji: EMOJIS.suspicious,
       color: COLORS.suspicious,
       icon: ICONS.suspicious
+    },
+    spam: {
+      text: 'SPAM',
+      emoji: EMOJIS.spam,
+      color: COLORS.spam,
+      icon: ICONS.spam
     },
     safe: {
       text: 'SEGURO',

@@ -38,6 +38,7 @@ class EmlAnalysisResponse(BaseModel):
     analysis: str
     recommendations: List[str]
     technical_details: Dict[str, Any]
+    category_explanation: str = ""
 
 @app.get("/")
 async def root() -> Dict[str, Any]:
@@ -172,9 +173,15 @@ async def analyze_gmail_email(request: GmailAnalysisRequest) -> EmlAnalysisRespo
         from anthropic import AsyncAnthropic
         client = AsyncAnthropic(api_key=claude_api_key)
         
-        # Create humanized analysis prompt
+        # Create improved analysis prompt with spam differentiation
         analysis_prompt = f"""
-Eres un experto en ciberseguridad que ayuda a personas a identificar emails peligrosos. Analiza este correo de manera conversacional y humana.
+Eres un experto en ciberseguridad que ayuda a identificar diferentes tipos de emails. Analiza este correo y diferencia claramente entre:
+
+TIPOS DE EMAIL:
+- SEGURO: Correo legítimo de organizaciones reales
+- SPAM: Correo comercial no deseado pero no malicioso (ofertas, promociones, etc.)
+- SOSPECHOSO: Posible intento de phishing o fraude pero sin certeza completa
+- PHISHING: Claramente malicioso, intenta robar datos o dinero
 
 CORREO A ANALIZAR:
 De: {request.sender}
@@ -182,13 +189,16 @@ Asunto: {request.subject}
 Contenido: {request.email_body[:1500]}
 Adjuntos: {len(request.attachments)}
 
-Responde como si fueras un consultor de seguridad amigable:
-1. Explica en términos simples qué encontraste
-2. Da tu opinión profesional sobre si es confiable
-3. Usa ejemplos concretos de lo que viste
-4. Habla de manera natural, no técnica
+Analiza estos criterios específicos:
+1. ¿Es de una organización real y reconocible?
+2. ¿Pide información personal, passwords o dinero?
+3. ¿Tiene urgencia sospechosa o amenazas?
+4. ¿Los enlaces van a dominios legítimos?
+5. ¿Es solo publicidad comercial?
 
-Importante: Termina SIEMPRE con "VEREDICTO: [SEGURO/SOSPECHOSO/MALICIOSO]"
+Responde de manera conversacional explicando tu razonamiento.
+
+IMPORTANTE: Termina con "VEREDICTO: [SEGURO/SPAM/SOSPECHOSO/PHISHING]"
 """
         
         response = await client.messages.create(
@@ -199,12 +209,13 @@ Importante: Termina SIEMPRE con "VEREDICTO: [SEGURO/SOSPECHOSO/MALICIOSO]"
         
         analysis_text = response.content[0].text
         
-        # Extract classification from humanized response
+        # Extract classification with improved categorization
         analysis_lower = analysis_text.lower()
         
-        if "veredicto: malicioso" in analysis_lower:
+        if "veredicto: phishing" in analysis_lower:
             classification = "phishing"
             risk_score = 85
+            category_explanation = "Intento de fraude malicioso"
             recommendations = [
                 "🚨 NO hagas clic en ningún enlace de este correo",
                 "🗑️ Elimina este mensaje inmediatamente",
@@ -213,32 +224,54 @@ Importante: Termina SIEMPRE con "VEREDICTO: [SEGURO/SOSPECHOSO/MALICIOSO]"
         elif "veredicto: sospechoso" in analysis_lower:
             classification = "suspicious"
             risk_score = 60
+            category_explanation = "Posible phishing que requiere verificación"
             recommendations = [
                 "🔍 Verifica la identidad del remitente por otro medio",
-                "⚠️ No proporciones información personal",
+                "⚠️ No proporciones información personal hasta confirmar",
                 "📞 Contacta directamente a la organización si es importante"
+            ]
+        elif "veredicto: spam" in analysis_lower:
+            classification = "spam"
+            risk_score = 35
+            category_explanation = "Correo comercial no deseado pero no malicioso"
+            recommendations = [
+                "📧 Puedes marcar como spam o eliminar",
+                "🚫 Usa la opción 'Darse de baja' si es de empresa conocida",
+                "🛡️ No es peligroso, solo molesto"
             ]
         elif "veredicto: seguro" in analysis_lower:
             classification = "safe"
             risk_score = 15
+            category_explanation = "Correo legítimo y confiable"
             recommendations = [
                 "✅ Este correo parece legítimo y seguro",
                 "👍 Puedes proceder con normalidad",
                 "🛡️ Mantente siempre alerta con futuros correos"
             ]
         else:
-            # Fallback logic with default recommendations
-            if any(word in analysis_lower for word in ["peligroso", "fraude", "estafa", "malicioso"]):
+            # Improved fallback logic
+            if any(word in analysis_lower for word in ["phishing", "fraude", "estafa", "robar", "malicioso"]):
                 classification = "phishing"
                 risk_score = 80
+                category_explanation = "Detectado como fraude"
                 recommendations = [
                     "🚨 NO hagas clic en ningún enlace",
                     "🗑️ Elimina este mensaje",
                     "📞 Reporta este intento de fraude"
                 ]
-            elif any(word in analysis_lower for word in ["cuidado", "precaución", "sospechoso", "dudoso"]):
+            elif any(word in analysis_lower for word in ["spam", "publicidad", "comercial", "promoción", "oferta"]):
+                classification = "spam"
+                risk_score = 30
+                category_explanation = "Correo comercial no deseado"
+                recommendations = [
+                    "📧 Marca como spam",
+                    "🚫 Darse de baja si es legítimo",
+                    "🛡️ No es peligroso"
+                ]
+            elif any(word in analysis_lower for word in ["cuidado", "precaución", "sospechoso", "dudoso", "verificar"]):
                 classification = "suspicious"
                 risk_score = 55
+                category_explanation = "Requiere verificación adicional"
                 recommendations = [
                     "🔍 Verifica el remitente",
                     "⚠️ No proporciones información",
@@ -247,6 +280,7 @@ Importante: Termina SIEMPRE con "VEREDICTO: [SEGURO/SOSPECHOSO/MALICIOSO]"
             else:
                 classification = "safe"
                 risk_score = 20
+                category_explanation = "Sin señales de peligro detectadas"
                 recommendations = [
                     "✅ Correo aparentemente seguro",
                     "👍 Procede con normalidad",
@@ -258,6 +292,7 @@ Importante: Termina SIEMPRE con "VEREDICTO: [SEGURO/SOSPECHOSO/MALICIOSO]"
             risk_score=risk_score,
             analysis=analysis_text[:800],
             recommendations=recommendations,
+            category_explanation=category_explanation,
             technical_details={
                 "ai_model": "advanced-security-ai",
                 "analysis_time": int(time.time()),
@@ -339,7 +374,13 @@ async def analyze_eml_file(file: UploadFile = File(...)) -> EmlAnalysisResponse:
         client = AsyncAnthropic(api_key=claude_api_key)
         
         analysis_prompt = f"""
-Eres un especialista en seguridad digital que ayuda a las personas a entender si sus correos son seguros. Analiza este email de forma clara y conversacional.
+Eres un especialista en seguridad digital que clasifica emails con precisión. Diferencia claramente entre:
+
+CATEGORÍAS:
+- SEGURO: Correo legítimo y confiable
+- SPAM: Publicidad comercial molesta pero no peligrosa  
+- SOSPECHOSO: Posible phishing que necesita verificación
+- PHISHING: Claramente malicioso, busca robar datos/dinero
 
 EMAIL RECIBIDO:
 De: {sender}
@@ -347,15 +388,16 @@ Asunto: {subject}
 Contenido: {body_text[:1200]}
 Archivos adjuntos: {attachment_count}
 
-Como un experto amigable, explica:
-1. Tu primera impresión sobre este correo
-2. Qué aspectos te llaman la atención (positivos o negativos)
-3. Si confiarías en este mensaje y por qué
-4. Consejo práctico para esta persona
+Evalúa específicamente:
+1. ¿Es de una organización real y reconocible?
+2. ¿Solicita datos personales, contraseñas o dinero?
+3. ¿Usa urgencia artificial o amenazas?
+4. ¿Es solo publicidad comercial sin intenciones maliciosas?
+5. ¿Los enlaces parecen legítimos?
 
-Habla de manera natural y comprensible, evita términos muy técnicos.
+Explica tu razonamiento de forma conversacional.
 
-Termina SIEMPRE con: "VEREDICTO: [SEGURO/SOSPECHOSO/MALICIOSO]"
+IMPORTANTE: Termina con "VEREDICTO: [SEGURO/SPAM/SOSPECHOSO/PHISHING]"
 """
         
         response = await client.messages.create(
@@ -404,6 +446,7 @@ Termina SIEMPRE con: "VEREDICTO: [SEGURO/SOSPECHOSO/MALICIOSO]"
                 "No hacer clic en enlaces hasta confirmar legitimidad", 
                 "Reportar si confirma que es phishing"
             ],
+            category_explanation="Análisis pendiente - usar clasificación actualizada",
             technical_details={
                 "ai_model": "advanced-security-ai",
                 "file_size": len(content),
