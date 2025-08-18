@@ -65,8 +65,8 @@ async def test() -> Dict[str, Any]:
         "ENVIRONMENT": os.getenv("ENVIRONMENT", "not-set"),
         "LOG_LEVEL": os.getenv("LOG_LEVEL", "not-set"),
         "WORKERS": os.getenv("WORKERS", "not-set"),
-        "GEMINI_API_KEY": "✅ set" if os.getenv("GEMINI_API_KEY") else "❌ not-set",
-        "API_TOKEN": "✅ set" if os.getenv("API_TOKEN") else "❌ not-set",
+        "GEMINI_KEY": "✅ set" if os.getenv("GEMINI_KEY") else "❌ not-set",
+        "AUTH_TOKEN": "✅ set" if os.getenv("AUTH_TOKEN") else "❌ not-set",
         "HOST": os.getenv("HOST", "not-set"),
         "PORT": os.getenv("PORT", "not-set")
     }

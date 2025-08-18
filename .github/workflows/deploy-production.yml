@@ -171,7 +171,7 @@ jobs:
             --max-instances=10 \
             --min-instances=0 \
             --timeout=300 \
-            --set-env-vars="LOG_LEVEL=info,WORKERS=2,ENVIRONMENT=production,GEMINI_API_KEY=$GEMINI_KEY,API_TOKEN=$API_TOKEN" \
+            --set-env-vars="LOG_LEVEL=info,WORKERS=2,ENVIRONMENT=production,GEMINI_KEY=$GEMINI_KEY,AUTH_TOKEN=$API_TOKEN" \
             --tag=${{ needs.pre-deployment-checks.outputs.version }} \
             --project=${{ env.PROJECT_ID }}
           
