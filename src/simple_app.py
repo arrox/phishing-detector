@@ -173,27 +173,37 @@ async def analyze_gmail_email(request: GmailAnalysisRequest) -> EmlAnalysisRespo
         from anthropic import AsyncAnthropic
         client = AsyncAnthropic(api_key=claude_api_key)
         
-        # Create balanced analysis prompt for Gmail addon
+        # Create improved analysis prompt with spam differentiation
         analysis_prompt = f"""
-Analiza este email de forma concisa pero completa:
+Eres un experto en ciberseguridad que ayuda a identificar diferentes tipos de emails. Analiza este correo y diferencia claramente entre:
 
-EMAIL:
+TIPOS DE EMAIL:
+- SEGURO: Correo legítimo de organizaciones reales
+- SPAM: Correo comercial no deseado pero no malicioso (ofertas, promociones, etc.)
+- SOSPECHOSO: Posible intento de phishing o fraude pero sin certeza completa
+- PHISHING: Claramente malicioso, intenta robar datos o dinero
+
+CORREO A ANALIZAR:
 De: {request.sender}
 Asunto: {request.subject}
-Contenido: {request.email_body[:1000]}
+Contenido: {request.email_body[:1500]}
+Adjuntos: {len(request.attachments)}
 
-INSTRUCCIONES:
-- Máximo 150 palabras total
-- Lenguaje simple para usuarios normales
-- 3 puntos clave: remitente, contenido, riesgo
-- SIEMPRE termina con el veredicto completo
+Analiza estos criterios específicos:
+1. ¿Es de una organización real y reconocible?
+2. ¿Pide información personal, passwords o dinero?
+3. ¿Tiene urgencia sospechosa o amenazas?
+4. ¿Los enlaces van a dominios legítimos?
+5. ¿Es solo publicidad comercial?
 
-VEREDICTO: [SEGURO/SPAM/SOSPECHOSO/PHISHING]
+Responde de manera conversacional explicando tu razonamiento.
+
+IMPORTANTE: Termina con "VEREDICTO: [SEGURO/SPAM/SOSPECHOSO/PHISHING]"
 """
         
         response = await client.messages.create(
             model="claude-sonnet-4-20250514",
-            max_tokens=300,
+            max_tokens=1000,
             messages=[{"role": "user", "content": analysis_prompt}]
         )
         
@@ -392,7 +402,7 @@ IMPORTANTE: Termina con "VEREDICTO: [SEGURO/SPAM/SOSPECHOSO/PHISHING]"
         
         response = await client.messages.create(
             model="claude-sonnet-4-20250514",
-            max_tokens=300,
+            max_tokens=1000,
             messages=[{"role": "user", "content": analysis_prompt}]
         )
         
