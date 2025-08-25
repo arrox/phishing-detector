@@ -203,7 +203,7 @@ IMPORTANTE: Termina con "VEREDICTO: [SEGURO/SPAM/SOSPECHOSO/PHISHING]"
         
         response = await client.messages.create(
             model="claude-sonnet-4-20250514",
-            max_tokens=1000,
+            max_tokens=500,
             messages=[{"role": "user", "content": analysis_prompt}]
         )
         
@@ -290,7 +290,7 @@ IMPORTANTE: Termina con "VEREDICTO: [SEGURO/SPAM/SOSPECHOSO/PHISHING]"
         return EmlAnalysisResponse(
             classification=classification,
             risk_score=risk_score,
-            analysis=analysis_text[:800],
+            analysis=analysis_text,
             recommendations=recommendations,
             category_explanation=category_explanation,
             technical_details={
@@ -402,7 +402,7 @@ IMPORTANTE: Termina con "VEREDICTO: [SEGURO/SPAM/SOSPECHOSO/PHISHING]"
         
         response = await client.messages.create(
             model="claude-sonnet-4-20250514",
-            max_tokens=1000,
+            max_tokens=500,
             messages=[{"role": "user", "content": analysis_prompt}]
         )
         
@@ -440,7 +440,7 @@ IMPORTANTE: Termina con "VEREDICTO: [SEGURO/SPAM/SOSPECHOSO/PHISHING]"
         return EmlAnalysisResponse(
             classification=classification,
             risk_score=risk_score,
-            analysis=analysis_text[:800],
+            analysis=analysis_text,
             recommendations=[
                 "Verificar autenticidad del remitente",
                 "No hacer clic en enlaces hasta confirmar legitimidad", 
