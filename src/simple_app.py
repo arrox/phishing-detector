@@ -173,27 +173,27 @@ async def analyze_gmail_email(request: GmailAnalysisRequest) -> EmlAnalysisRespo
         from anthropic import AsyncAnthropic
         client = AsyncAnthropic(api_key=claude_api_key)
         
-        # Create concise analysis prompt for Gmail addon
+        # Create balanced analysis prompt for Gmail addon
         analysis_prompt = f"""
-Analiza este email brevemente:
+Analiza este email de forma concisa pero completa:
 
 EMAIL:
 De: {request.sender}
 Asunto: {request.subject}
-Contenido: {request.email_body[:800]}
+Contenido: {request.email_body[:1000]}
 
-EVALÚA en máximo 3 frases:
-1. Legitimidad del remitente
-2. Contenido sospechoso
-3. Riesgo general
+INSTRUCCIONES:
+- Máximo 150 palabras total
+- Lenguaje simple para usuarios normales
+- 3 puntos clave: remitente, contenido, riesgo
+- SIEMPRE termina con el veredicto completo
 
-RESPUESTA: Máximo 200 palabras, lenguaje simple para usuarios normales.
-TERMINA con: "VEREDICTO: [SEGURO/SPAM/SOSPECHOSO/PHISHING]"
+VEREDICTO: [SEGURO/SPAM/SOSPECHOSO/PHISHING]
 """
         
         response = await client.messages.create(
             model="claude-sonnet-4-20250514",
-            max_tokens=200,
+            max_tokens=300,
             messages=[{"role": "user", "content": analysis_prompt}]
         )
         
@@ -392,7 +392,7 @@ IMPORTANTE: Termina con "VEREDICTO: [SEGURO/SPAM/SOSPECHOSO/PHISHING]"
         
         response = await client.messages.create(
             model="claude-sonnet-4-20250514",
-            max_tokens=200,
+            max_tokens=300,
             messages=[{"role": "user", "content": analysis_prompt}]
         )
         
